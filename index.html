@@ -29,7 +29,7 @@
       0.1,
       1000
     );
-    camera.position.set(0, 4, 6);  // Closer, lower angle (like behind Link's shoulder)
+    camera.position.set(0, 6, 10);  // OOT-style: higher and back a bit
     camera.lookAt(0, 1, 0);        // Look at the knight (not the floor)
 
     // --- RENDERER SETUP ---
@@ -43,8 +43,8 @@
     scene.add(ambientLight);
 
     // Warm "torch" light from above the room
-    const torchLight = new THREE.PointLight(0xffaa55, 50, 30);
-    torchLight.position.set(0, 5, 0);
+    const torchLight = new THREE.PointLight(0xffaa55, 100, 50);
+    torchLight.position.set(0, 7, 0);
     scene.add(torchLight);
 
     // A cool blue moonlight from above to fill in shadows
@@ -53,7 +53,7 @@
     scene.add(moonLight);   
 
     // --- BUILDING THE ROOM ---
-    const roomSize = 10; // The room is 10x10 units
+    const roomSize = 20; // The room is 10x10 units
 
     // FLOOR - a flat stone-colored square
     const floorGeometry = new THREE.PlaneGeometry(roomSize, roomSize);
