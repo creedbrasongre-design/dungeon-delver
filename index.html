@@ -22,15 +22,15 @@
     scene.background = new THREE.Color(0x111111); // Dark background
 
     // --- CAMERA SETUP ---
-    // Position the camera up high and angled down (Zelda-style)
+    // Third-person camera (OOT-style) - behind and above the knight
     const camera = new THREE.PerspectiveCamera(
       60,
       window.innerWidth / window.innerHeight,
       0.1,
       1000
     );
-    camera.position.set(0, 12, 12); // (x, y, z) - up 12, back 12
-    camera.lookAt(0, 0, 0);         // Look at the center of the room
+    camera.position.set(0, 4, 6);  // Closer, lower angle (like behind Link's shoulder)
+    camera.lookAt(0, 1, 0);        // Look at the knight (not the floor)
 
     // --- RENDERER SETUP ---
     const renderer = new THREE.WebGLRenderer();
