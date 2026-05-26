@@ -39,13 +39,18 @@
 
     // --- LIGHTING ---
     // Soft overall light so nothing is pitch black
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
     scene.add(ambientLight);
 
-    // Bright "torch" light from above
-    const torchLight = new THREE.PointLight(0xffaa55, 1.5, 50);
-    torchLight.position.set(0, 8, 0);
+    // Warm "torch" light from above the room
+    const torchLight = new THREE.PointLight(0xffaa55, 50, 30);
+    torchLight.position.set(0, 5, 0);
     scene.add(torchLight);
+
+    // A cool blue moonlight from above to fill in shadows
+    const moonLight = new THREE.DirectionalLight(0xaaaaff, 0.5);
+    moonLight.position.set(5, 10, 5);
+    scene.add(moonLight);   
 
     // --- BUILDING THE ROOM ---
     const roomSize = 10; // The room is 10x10 units
