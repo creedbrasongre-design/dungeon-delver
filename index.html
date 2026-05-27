@@ -126,7 +126,7 @@
     // --- SWORD SWING STATE ---
     let isSwinging = false;
     let swingTimer = 0;
-    const swingDuration = 0.2;
+    const swingDuration = 0.05;
 
     function startSwing() {
       // Always allow a new swing, even mid-animation (LTTP feel!)
@@ -187,7 +187,8 @@
           swingTimer = 0;
           sword.rotation.y = 0;
         } else {
-          sword.rotation.y = Math.sin(swingTimer * Math.PI) * 2.0;
+          // Sword swings from right side OUT to the front (heroic slash!)
+          sword.rotation.y = -Math.sin(swingTimer * Math.PI) * 1.8 - 0.3;
         }
       }
 
