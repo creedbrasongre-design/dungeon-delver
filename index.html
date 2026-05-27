@@ -98,12 +98,38 @@
     knight.position.set(0, 0.8, 0);
     scene.add(knight);
 
-    // FACING MARKER - a red cube on the knight's "front" so we can see rotation
-    const noseGeometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
-    const noseMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-    const nose = new THREE.Mesh(noseGeometry, noseMaterial);
-    nose.position.set(0, 0.1, -0.5); // Sticks out the front of the knight
-    knight.add(nose); // IMPORTANT: add to knight, not scene!
+    // --- THE SWORD ---
+    // We build the sword as a "group" - multiple parts that move together
+    const sword = new THREE.Group();
+
+    // BLADE - long, thin, gray
+    const bladeGeometry = new THREE.BoxGeometry(0.08, 0.08, 1.0);
+    const bladeMaterial = new THREE.MeshStandardMaterial({
+      color: 0xcccccc,    // Silver/gray
+      metalness: 0.8,     // Looks metallic!
+      roughness: 0.3      // Slightly shiny
+    });
+    const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
+    blade.position.set(0, 0, -0.5); // Blade extends forward from the hilt
+    sword.add(blade);
+
+    // HILT - shorter, thicker, brown (the grip)
+    const hiltGeometry = new THREE.BoxGeometry(0.12, 0.12, 0.25);
+    const hiltMaterial = new THREE.MeshStandardMaterial({ color: 0x6b3410 });
+    const hilt = new THREE.Mesh(hiltGeometry, hiltMaterial);
+    hilt.position.set(0, 0, 0.15); // Hilt sits behind the blade
+    sword.add(hilt);
+
+    // CROSSGUARD - the part between blade and hilt that protects your hand
+    const guardGeometry = new THREE.BoxGeometry(0.35, 0.1, 0.08);
+    const guardMaterial = new THREE.MeshStandardMaterial({ color: 0x8b5a2b });
+    const guard = new THREE.Mesh(guardGeometry, guardMaterial);
+    guard.position.set(0, 0, 0); // Right between hilt and blade
+    sword.add(guard);
+
+    // Position the whole sword like the knight is holding it
+    sword.position.set(0.5, 0, -0.3); // Right side of knight, slightly forward
+    knight.add(sword); // Attach to knight so it moves/rotates with him!
 
     // --- KEYBOARD INPUT TRACKING ---
     // Tracks which direction the player wants to move
