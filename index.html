@@ -14,7 +14,7 @@
 
   <script>
     // =====================================================
-    // DUNGEON DELVER - Phase 2: Movement
+    // DUNGEON DELVER - Phase 3: First Combat
     // =====================================================
 
     // --- SCENE SETUP ---
@@ -22,7 +22,6 @@
     scene.background = new THREE.Color(0x111111);
 
     // --- CAMERA SETUP ---
-    // Third-person camera (OOT-style) - behind and above the knight
     const camera = new THREE.PerspectiveCamera(
       60,
       window.innerWidth / window.innerHeight,
@@ -50,48 +49,34 @@
     scene.add(moonLight);
 
     // --- BUILDING THE ROOM ---
-    const roomSize = 20; // The room is 20x20 units
+    const roomSize = 20;
 
-    // FLOOR
     const floorGeometry = new THREE.PlaneGeometry(roomSize, roomSize);
     const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x666666 });
     const floor = new THREE.Mesh(floorGeometry, floorMaterial);
     floor.rotation.x = -Math.PI / 2;
     scene.add(floor);
 
-    // WALLS
     const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x554433 });
     const wallHeight = 3;
 
-    const backWall = new THREE.Mesh(
-      new THREE.BoxGeometry(roomSize, wallHeight, 0.5),
-      wallMaterial
-    );
+    const backWall = new THREE.Mesh(new THREE.BoxGeometry(roomSize, wallHeight, 0.5), wallMaterial);
     backWall.position.set(0, wallHeight / 2, -roomSize / 2);
     scene.add(backWall);
 
-    const frontWall = new THREE.Mesh(
-      new THREE.BoxGeometry(roomSize, wallHeight, 0.5),
-      wallMaterial
-    );
+    const frontWall = new THREE.Mesh(new THREE.BoxGeometry(roomSize, wallHeight, 0.5), wallMaterial);
     frontWall.position.set(0, wallHeight / 2, roomSize / 2);
     scene.add(frontWall);
 
-    const leftWall = new THREE.Mesh(
-      new THREE.BoxGeometry(0.5, wallHeight, roomSize),
-      wallMaterial
-    );
+    const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.5, wallHeight, roomSize), wallMaterial);
     leftWall.position.set(-roomSize / 2, wallHeight / 2, 0);
     scene.add(leftWall);
 
-    const rightWall = new THREE.Mesh(
-      new THREE.BoxGeometry(0.5, wallHeight, roomSize),
-      wallMaterial
-    );
+    const rightWall = new THREE.Mesh(new THREE.BoxGeometry(0.5, wallHeight, roomSize), wallMaterial);
     rightWall.position.set(roomSize / 2, wallHeight / 2, 0);
     scene.add(rightWall);
 
-    // --- THE KNIGHT (our player!) ---
+    // --- THE KNIGHT ---
     const knightGeometry = new THREE.CapsuleGeometry(0.4, 0.8, 4, 8);
     const knightMaterial = new THREE.MeshStandardMaterial({ color: 0x4488ff });
     const knight = new THREE.Mesh(knightGeometry, knightMaterial);
@@ -99,67 +84,57 @@
     scene.add(knight);
 
     // --- THE SWORD ---
-    // We build the sword as a "group" - multiple parts that move together
     const sword = new THREE.Group();
 
-    // BLADE - long, thin, gray
     const bladeGeometry = new THREE.BoxGeometry(0.08, 0.08, 1.0);
-    const bladeMaterial = new THREE.MeshStandardMaterial({
-      color: 0xcccccc,    // Silver/gray
-      metalness: 0.8,     // Looks metallic!
-      roughness: 0.3      // Slightly shiny
-    });
+    const bladeMaterial = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.8, roughness: 0.3 });
     const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
-    blade.position.set(0, 0, -0.5); // Blade extends forward from the hilt
+    blade.position.set(0, 0, -0.5);
     sword.add(blade);
 
-    // HILT - shorter, thicker, brown (the grip)
     const hiltGeometry = new THREE.BoxGeometry(0.12, 0.12, 0.25);
     const hiltMaterial = new THREE.MeshStandardMaterial({ color: 0x6b3410 });
     const hilt = new THREE.Mesh(hiltGeometry, hiltMaterial);
-    hilt.position.set(0, 0, 0.15); // Hilt sits behind the blade
+    hilt.position.set(0, 0, 0.15);
     sword.add(hilt);
 
-    // CROSSGUARD - the part between blade and hilt that protects your hand
     const guardGeometry = new THREE.BoxGeometry(0.35, 0.1, 0.08);
     const guardMaterial = new THREE.MeshStandardMaterial({ color: 0x8b5a2b });
     const guard = new THREE.Mesh(guardGeometry, guardMaterial);
-    guard.position.set(0, 0, 0); // Right between hilt and blade
+    guard.position.set(0, 0, 0);
     sword.add(guard);
 
-    // Position the whole sword like the knight is holding it
-    sword.position.set(0.5, 0, -0.3); // Right side of knight, slightly forward
-    knight.add(sword); // Attach to knight so it moves/rotates with him!
+    sword.position.set(0.5, 0, -0.3);
+    knight.add(sword);
 
-    // --- KEYBOARD INPUT TRACKING ---
     // --- ENEMIES ---
-    // We use an array to store all enemies (so we can add many later!)
     const enemies = [];
 
-    // Function to create a slime at any position
     function createSlime(x, z) {
       const slimeGeometry = new THREE.SphereGeometry(0.6, 12, 8);
-      const slimeMaterial = new THREE.MeshStandardMaterial({
-        color: 0x44dd44,    // Bright green
-        roughness: 0.4
-      });
+      const slimeMaterial = new THREE.MeshStandardMaterial({ color: 0x44dd44, roughness: 0.4 });
       const slime = new THREE.Mesh(slimeGeometry, slimeMaterial);
-      slime.position.set(x, 0.6, z); // Sit on the floor
-
-      // Give the slime some game properties (a custom object)
-      slime.userData = {
-        health: 3,
-        isAlive: true
-      };
-
+      slime.position.set(x, 0.6, z);
+      slime.userData = { health: 3, isAlive: true };
       scene.add(slime);
       enemies.push(slime);
       return slime;
     }
 
-    // Create our first slime - 5 steps in front of the knight
     createSlime(0, -5);
-    // Tracks which direction the player wants to move
+
+    // --- SWORD SWING STATE ---
+    let isSwinging = false;
+    let swingTimer = 0;
+    const swingDuration = 0.4;
+
+    function startSwing() {
+      if (isSwinging) return;
+      isSwinging = true;
+      swingTimer = 0;
+    }
+
+    // --- KEYBOARD INPUT TRACKING ---
     const keys = {
       up: false,
       down: false,
@@ -167,29 +142,18 @@
       right: false
     };
 
-    // Helper function - handles arrow keys, WASD, AND space bar
     function setKey(event, isPressed) {
       const key = event.key;
       if (key === 'ArrowUp' || key === 'w' || key === 'W') keys.up = isPressed;
       if (key === 'ArrowDown' || key === 's' || key === 'S') keys.down = isPressed;
       if (key === 'ArrowLeft' || key === 'a' || key === 'A') keys.left = isPressed;
       if (key === 'ArrowRight' || key === 'd' || key === 'D') keys.right = isPressed;
-      if (key === ' ' && isPressed) startSwing(); // SPACE BAR = SWING!
+      if (key === ' ' && isPressed) startSwing();
     }
 
     window.addEventListener('keydown', (event) => setKey(event, true));
     window.addEventListener('keyup', (event) => setKey(event, false));
-    // --- SWORD SWING STATE ---
-    let isSwinging = false;        // Are we currently swinging?
-    let swingTimer = 0;            // How far into the swing (0 to 1)
-    const swingDuration = 0.4;     // Swing takes 0.4 seconds total
 
-    // Function to START a swing (called when space is pressed)
-    function startSwing() {
-      if (isSwinging) return;  // Already swinging? Don't restart
-      isSwinging = true;
-      swingTimer = 0;
-    }
     // --- MOVEMENT SETTINGS ---
     const moveSpeed = 0.1;
 
@@ -197,43 +161,37 @@
     function animate() {
       requestAnimationFrame(animate);
 
-      // Figure out which direction the player wants to move
+      // Movement
       let moveX = 0;
       let moveZ = 0;
-      if (keys.up) moveZ -= 1;      // Forward
-      if (keys.down) moveZ += 1;    // Backward
-      if (keys.left) moveX -= 1;    // Left
-      if (keys.right) moveX += 1;   // Right
+      if (keys.up) moveZ -= 1;
+      if (keys.down) moveZ += 1;
+      if (keys.left) moveX -= 1;
+      if (keys.right) moveX += 1;
 
-      // Are we actually moving? (Both numbers are zero = standing still)
       const isMoving = (moveX !== 0 || moveZ !== 0);
 
-      // Apply the movement to the knight
       knight.position.x += moveX * moveSpeed;
       knight.position.z += moveZ * moveSpeed;
 
-      // Rotate the knight to face the direction it's moving
       if (isMoving) {
         knight.rotation.y = Math.atan2(moveX, moveZ) + Math.PI;
       }
 
-      // --- ANIMATE THE SWORD SWING ---
+      // Sword swing animation
       if (isSwinging) {
-        swingTimer += 1 / 60 / swingDuration; // Move forward (60fps assumption)
+        swingTimer += 1 / 60 / swingDuration;
 
         if (swingTimer >= 1) {
-          // Swing finished - return to rest
           isSwinging = false;
           swingTimer = 0;
           sword.rotation.x = 0;
         } else {
-          // Mid-swing: rotate the sword in an arc
-          // sin() makes it smoothly go up and back down
           sword.rotation.x = -Math.sin(swingTimer * Math.PI) * 1.5;
         }
       }
 
-      // Make the camera follow the knight
+      // Camera follow
       camera.position.x = knight.position.x;
       camera.position.z = knight.position.z + 6;
       camera.lookAt(knight.position.x, 1.6, knight.position.z);
