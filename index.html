@@ -184,11 +184,28 @@
 
       const isMoving = (moveX !== 0 || moveZ !== 0);
 
+      // FIX 1: Normalize diagonal movement (so diagonals aren't faster)
+      if (isMoving) {
+        const length = Math.sqrt(moveX * moveX + moveZ * moveZ);
+        moveX = moveX / length;
+        moveZ = moveZ / length;
+      }
+
+      // Apply movement
       knight.position.x += moveX * moveSpeed;
       knight.position.z += moveZ * moveSpeed;
 
+      // FIX 2: Smooth rotation toward direction of movement (OOT-style!)
       if (isMoving) {
-        knight.rotation.y = Math.atan2(moveX, moveZ) + Math.PI;
+        const targetRotation = Math.atan2(moveX, moveZ) + Math.PI;
+
+        // Find the shortest path between current and target angle
+        let angleDiff = targetRotation - knight.rotation.y;
+        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+
+        // Rotate a bit toward the target each frame
+        knight.rotation.y += angleDiff * 0.2;
       }
 
       // Sword swing animation - full horizontal slash (right to left)
