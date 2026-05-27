@@ -185,10 +185,10 @@
         if (swingTimer >= 1) {
           isSwinging = false;
           swingTimer = 0;
-          sword.rotation.y = 0;
+          sword.rotation.y = -0.3;  // Return to rest position on the right
         } else {
           // Sword swings from right side OUT to the front (heroic slash!)
-          sword.rotation.y = -Math.sin(swingTimer * Math.PI) * 1.8 - 0.3;
+          sword.rotation.y = -1.5 + swingTimer * 3.0;
         }
       }
 
