@@ -98,6 +98,13 @@
     knight.position.set(0, 0.8, 0);
     scene.add(knight);
 
+    // FACING MARKER - a red cube on the knight's "front" so we can see rotation
+    const noseGeometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+    const noseMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+    const nose = new THREE.Mesh(noseGeometry, noseMaterial);
+    nose.position.set(0, 0.1, -0.5); // Sticks out the front of the knight
+    knight.add(nose); // IMPORTANT: add to knight, not scene!
+
     // --- KEYBOARD INPUT TRACKING ---
     // Tracks which direction the player wants to move
     const keys = {
