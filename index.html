@@ -105,6 +105,7 @@
     sword.add(guard);
 
     sword.position.set(0.5, 0, -0.3);
+    sword.rotation.y = -0.3; // Rest position - angled outward from body
     knight.add(sword);
 
     // --- ENEMIES ---
@@ -126,12 +127,19 @@
     // --- SWORD SWING STATE ---
     let isSwinging = false;
     let swingTimer = 0;
+    let hasHitThisSwing = false;
+    let cooldownTimer = 0;
     const swingDuration = 0.12;
+    const swingCooldown = 0.15;
+    const hitRange = 1.5;
+    const swordDamage = 1;
 
     function startSwing() {
-      // Always allow a new swing, even mid-animation (LTTP feel!)
+      // Can't swing if already swinging OR cooling down
+      if (isSwinging || cooldownTimer > 0) return;
       isSwinging = true;
       swingTimer = 0;
+      hasHitThisSwing = false;
     }
 
     // --- KEYBOARD INPUT TRACKING ---
@@ -155,11 +163,16 @@
     window.addEventListener('keyup', (event) => setKey(event, false));
 
     // --- MOVEMENT SETTINGS ---
-    const moveSpeed = 0.1;
+    const moveSpeed = 0.15;
 
     // --- THE GAME LOOP ---
     function animate() {
       requestAnimationFrame(animate);
+
+      // Tick down the cooldown timer
+      if (cooldownTimer > 0) {
+        cooldownTimer -= 1 / 60;
+      }
 
       // Movement
       let moveX = 0;
@@ -178,17 +191,43 @@
         knight.rotation.y = Math.atan2(moveX, moveZ) + Math.PI;
       }
 
-      // Sword swing animation - horizontal slash (OOT-style)
+      // Sword swing animation - full horizontal slash (right to left)
       if (isSwinging) {
         swingTimer += 1 / 60 / swingDuration;
 
         if (swingTimer >= 1) {
           isSwinging = false;
           swingTimer = 0;
-          sword.rotation.y = -0.3;  // Return to rest position on the right
+          cooldownTimer = swingCooldown; // Start cooldown!
+          sword.rotation.y = -0.3; // Return to rest position
         } else {
-          // Sword swings from right side OUT to the front (heroic slash!)
+          // Sword sweeps from RIGHT (-1.5) to LEFT (+1.5) — full slash!
           sword.rotation.y = -1.5 + swingTimer * 3.0;
+        }
+
+        // HIT DETECTION - check if sword hits any enemies during the swing
+        if (!hasHitThisSwing) {
+          for (let i = 0; i < enemies.length; i++) {
+            const enemy = enemies[i];
+            if (!enemy.userData.isAlive) continue; // Skip dead enemies
+
+            const distance = knight.position.distanceTo(enemy.position);
+            if (distance < hitRange) {
+              // HIT! Damage the enemy
+              enemy.userData.health -= swordDamage;
+              hasHitThisSwing = true;
+              console.log("HIT! Slime HP:", enemy.userData.health);
+
+              // Check if enemy died
+              if (enemy.userData.health <= 0) {
+                enemy.userData.isAlive = false;
+                scene.remove(enemy);
+                console.log("Slime defeated!");
+              }
+
+              break; // Only hit one enemy per swing
+            }
+          }
         }
       }
 
