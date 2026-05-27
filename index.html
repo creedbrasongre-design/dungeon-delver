@@ -14,7 +14,7 @@
 
   <script>
     // =====================================================
-    // DUNGEON DELVER - Phase 3: First Combat
+    // DUNGEON DELVER - Phase 3: First Combat (with Knockback!)
     // =====================================================
 
     // --- SCENE SETUP ---
@@ -105,7 +105,7 @@
     sword.add(guard);
 
     sword.position.set(0.5, 0, -0.3);
-    sword.rotation.y = -0.3; // Rest position - angled outward from body
+    sword.rotation.y = -0.3;
     knight.add(sword);
 
     // --- ENEMIES ---
@@ -119,8 +119,11 @@
       slime.userData = {
         health: 3,
         isAlive: true,
-        hitFlashTimer: 0,        // How long left of hit flash
-        normalColor: 0x44dd44    // Color to return to after flash
+        hitFlashTimer: 0,
+        normalColor: 0x44dd44,
+        knockbackX: 0,
+        knockbackZ: 0,
+        knockbackTimer: 0
       };
       scene.add(slime);
       enemies.push(slime);
@@ -140,7 +143,6 @@
     const swordDamage = 1;
 
     function startSwing() {
-      // Can't swing if already swinging OR cooling down
       if (isSwinging || cooldownTimer > 0) return;
       isSwinging = true;
       swingTimer = 0;
@@ -179,18 +181,31 @@
         cooldownTimer -= 1 / 60;
       }
 
-      // Update enemy hit flash timers
+      // Update enemy effects (flash + knockback)
       for (let i = 0; i < enemies.length; i++) {
         const enemy = enemies[i];
         if (!enemy.userData.isAlive) continue;
 
+        // Hit flash effect
         if (enemy.userData.hitFlashTimer > 0) {
           enemy.userData.hitFlashTimer -= 1 / 60;
 
-          // When flash ends, return to normal color
           if (enemy.userData.hitFlashTimer <= 0) {
             enemy.material.color.setHex(enemy.userData.normalColor);
           }
+        }
+
+        // Knockback effect
+        if (enemy.userData.knockbackTimer > 0) {
+          enemy.userData.knockbackTimer -= 1 / 60;
+
+          // Apply the knockback push
+          enemy.position.x += enemy.userData.knockbackX;
+          enemy.position.z += enemy.userData.knockbackZ;
+
+          // Slow down the knockback over time (deceleration)
+          enemy.userData.knockbackX *= 0.85;
+          enemy.userData.knockbackZ *= 0.85;
         }
       }
 
@@ -204,7 +219,7 @@
 
       const isMoving = (moveX !== 0 || moveZ !== 0);
 
-      // FIX 1: Normalize diagonal movement (so diagonals aren't faster)
+      // Normalize diagonal movement
       if (isMoving) {
         const length = Math.sqrt(moveX * moveX + moveZ * moveZ);
         moveX = moveX / length;
@@ -215,38 +230,35 @@
       knight.position.x += moveX * moveSpeed;
       knight.position.z += moveZ * moveSpeed;
 
-      // FIX 2: Smooth rotation toward direction of movement (OOT-style!)
+      // Smooth rotation
       if (isMoving) {
         const targetRotation = Math.atan2(moveX, moveZ) + Math.PI;
 
-        // Find the shortest path between current and target angle
         let angleDiff = targetRotation - knight.rotation.y;
         while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
         while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
 
-        // Rotate a bit toward the target each frame
         knight.rotation.y += angleDiff * 0.2;
       }
 
-      // Sword swing animation - full horizontal slash (right to left)
+      // Sword swing animation
       if (isSwinging) {
         swingTimer += 1 / 60 / swingDuration;
 
         if (swingTimer >= 1) {
           isSwinging = false;
           swingTimer = 0;
-          cooldownTimer = swingCooldown; // Start cooldown!
-          sword.rotation.y = -0.3; // Return to rest position
+          cooldownTimer = swingCooldown;
+          sword.rotation.y = -0.3;
         } else {
-          // Sword sweeps from RIGHT (-1.5) to LEFT (+1.5) — full slash!
           sword.rotation.y = -1.5 + swingTimer * 3.0;
         }
 
-        // HIT DETECTION - check if sword hits any enemies during the swing
+        // HIT DETECTION
         if (!hasHitThisSwing) {
           for (let i = 0; i < enemies.length; i++) {
             const enemy = enemies[i];
-            if (!enemy.userData.isAlive) continue; // Skip dead enemies
+            if (!enemy.userData.isAlive) continue;
 
             const distance = knight.position.distanceTo(enemy.position);
             if (distance < hitRange) {
@@ -255,9 +267,20 @@
               hasHitThisSwing = true;
               console.log("HIT! Slime HP:", enemy.userData.health);
 
-              // Start the hit flash effect
-              enemy.userData.hitFlashTimer = 0.15;     // Flash for 0.15 seconds
-              enemy.material.color.setHex(0xff4444);   // Turn red instantly
+              // Start hit flash
+              enemy.userData.hitFlashTimer = 0.15;
+              enemy.material.color.setHex(0xff4444);
+
+              // KNOCKBACK! Calculate direction from knight to slime
+              const knockbackDirX = enemy.position.x - knight.position.x;
+              const knockbackDirZ = enemy.position.z - knight.position.z;
+              const knockbackLength = Math.sqrt(knockbackDirX * knockbackDirX + knockbackDirZ * knockbackDirZ);
+
+              // Normalize and apply knockback force
+              const knockbackStrength = 0.3;
+              enemy.userData.knockbackX = (knockbackDirX / knockbackLength) * knockbackStrength;
+              enemy.userData.knockbackZ = (knockbackDirZ / knockbackLength) * knockbackStrength;
+              enemy.userData.knockbackTimer = 0.2;
 
               // Check if enemy died
               if (enemy.userData.health <= 0) {
@@ -266,7 +289,7 @@
                 console.log("Slime defeated!");
               }
 
-              break; // Only hit one enemy per swing
+              break;
             }
           }
         }
