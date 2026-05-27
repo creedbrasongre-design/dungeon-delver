@@ -14,12 +14,12 @@
 
   <script>
     // =====================================================
-    // DUNGEON DELVER - Phase 1: The Room
+    // DUNGEON DELVER - Phase 2: Movement
     // =====================================================
 
     // --- SCENE SETUP ---
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x111111); // Dark background
+    scene.background = new THREE.Color(0x111111);
 
     // --- CAMERA SETUP ---
     // Third-person camera (OOT-style) - behind and above the knight
@@ -29,8 +29,8 @@
       0.1,
       1000
     );
-    camera.position.set(0, 3.5, 6);  // Closer to Link! Lower angle, OOT-style
-    camera.lookAt(0, 1.6, 0);        // Look at the knight's head
+    camera.position.set(0, 3.5, 6);
+    camera.lookAt(0, 1.6, 0);
 
     // --- RENDERER SETUP ---
     const renderer = new THREE.WebGLRenderer();
@@ -38,35 +38,31 @@
     document.body.appendChild(renderer.domElement);
 
     // --- LIGHTING ---
-    // Soft overall light so nothing is pitch black
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
     scene.add(ambientLight);
 
-    // Warm "torch" light from above the room
     const torchLight = new THREE.PointLight(0xffaa55, 100, 50);
     torchLight.position.set(0, 7, 0);
     scene.add(torchLight);
 
-    // A cool blue moonlight from above to fill in shadows
     const moonLight = new THREE.DirectionalLight(0xaaaaff, 0.5);
     moonLight.position.set(5, 10, 5);
-    scene.add(moonLight);   
+    scene.add(moonLight);
 
     // --- BUILDING THE ROOM ---
-    const roomSize = 20; // The room is 10x10 units
+    const roomSize = 20; // The room is 20x20 units
 
-    // FLOOR - a flat stone-colored square
+    // FLOOR
     const floorGeometry = new THREE.PlaneGeometry(roomSize, roomSize);
     const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x666666 });
     const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-    floor.rotation.x = -Math.PI / 2; // Rotate flat (90 degrees)
+    floor.rotation.x = -Math.PI / 2;
     scene.add(floor);
 
-    // WALLS - 4 walls around the room
+    // WALLS
     const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x554433 });
     const wallHeight = 3;
 
-    // Back wall
     const backWall = new THREE.Mesh(
       new THREE.BoxGeometry(roomSize, wallHeight, 0.5),
       wallMaterial
@@ -74,7 +70,6 @@
     backWall.position.set(0, wallHeight / 2, -roomSize / 2);
     scene.add(backWall);
 
-    // Front wall
     const frontWall = new THREE.Mesh(
       new THREE.BoxGeometry(roomSize, wallHeight, 0.5),
       wallMaterial
@@ -82,7 +77,6 @@
     frontWall.position.set(0, wallHeight / 2, roomSize / 2);
     scene.add(frontWall);
 
-    // Left wall
     const leftWall = new THREE.Mesh(
       new THREE.BoxGeometry(0.5, wallHeight, roomSize),
       wallMaterial
@@ -90,7 +84,6 @@
     leftWall.position.set(-roomSize / 2, wallHeight / 2, 0);
     scene.add(leftWall);
 
-    // Right wall
     const rightWall = new THREE.Mesh(
       new THREE.BoxGeometry(0.5, wallHeight, roomSize),
       wallMaterial
@@ -99,16 +92,51 @@
     scene.add(rightWall);
 
     // --- THE KNIGHT (our player!) ---
-    // For now: a simple blue capsule shape
     const knightGeometry = new THREE.CapsuleGeometry(0.4, 0.8, 4, 8);
     const knightMaterial = new THREE.MeshStandardMaterial({ color: 0x4488ff });
     const knight = new THREE.Mesh(knightGeometry, knightMaterial);
-    knight.position.set(0, 0.8, 0); // Stand on the floor
+    knight.position.set(0, 0.8, 0);
     scene.add(knight);
+
+    // --- KEYBOARD INPUT TRACKING ---
+    // Tracks which direction the player wants to move
+    const keys = {
+      up: false,
+      down: false,
+      left: false,
+      right: false
+    };
+
+    // Helper function - handles both arrow keys AND WASD
+    function setKey(event, isPressed) {
+      const key = event.key;
+      if (key === 'ArrowUp' || key === 'w' || key === 'W') keys.up = isPressed;
+      if (key === 'ArrowDown' || key === 's' || key === 'S') keys.down = isPressed;
+      if (key === 'ArrowLeft' || key === 'a' || key === 'A') keys.left = isPressed;
+      if (key === 'ArrowRight' || key === 'd' || key === 'D') keys.right = isPressed;
+    }
+
+    window.addEventListener('keydown', (event) => setKey(event, true));
+    window.addEventListener('keyup', (event) => setKey(event, false));
+
+    // --- MOVEMENT SETTINGS ---
+    const moveSpeed = 0.1;
 
     // --- THE GAME LOOP ---
     function animate() {
       requestAnimationFrame(animate);
+
+      // Move the knight based on which keys are held
+      if (keys.up) knight.position.z -= moveSpeed;     // Forward
+      if (keys.down) knight.position.z += moveSpeed;   // Backward
+      if (keys.left) knight.position.x -= moveSpeed;   // Left
+      if (keys.right) knight.position.x += moveSpeed;  // Right
+
+      // Make the camera follow the knight
+      camera.position.x = knight.position.x;
+      camera.position.z = knight.position.z + 6;
+      camera.lookAt(knight.position.x, 1.6, knight.position.z);
+
       renderer.render(scene, camera);
     }
     animate();
