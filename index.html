@@ -167,18 +167,29 @@
       right: false
     };
 
-    // Helper function - handles both arrow keys AND WASD
+    // Helper function - handles arrow keys, WASD, AND space bar
     function setKey(event, isPressed) {
       const key = event.key;
       if (key === 'ArrowUp' || key === 'w' || key === 'W') keys.up = isPressed;
       if (key === 'ArrowDown' || key === 's' || key === 'S') keys.down = isPressed;
       if (key === 'ArrowLeft' || key === 'a' || key === 'A') keys.left = isPressed;
       if (key === 'ArrowRight' || key === 'd' || key === 'D') keys.right = isPressed;
+      if (key === ' ' && isPressed) startSwing(); // SPACE BAR = SWING!
     }
 
     window.addEventListener('keydown', (event) => setKey(event, true));
     window.addEventListener('keyup', (event) => setKey(event, false));
+    // --- SWORD SWING STATE ---
+    let isSwinging = false;        // Are we currently swinging?
+    let swingTimer = 0;            // How far into the swing (0 to 1)
+    const swingDuration = 0.4;     // Swing takes 0.4 seconds total
 
+    // Function to START a swing (called when space is pressed)
+    function startSwing() {
+      if (isSwinging) return;  // Already swinging? Don't restart
+      isSwinging = true;
+      swingTimer = 0;
+    }
     // --- MOVEMENT SETTINGS ---
     const moveSpeed = 0.1;
 
@@ -204,6 +215,22 @@
       // Rotate the knight to face the direction it's moving
       if (isMoving) {
         knight.rotation.y = Math.atan2(moveX, moveZ) + Math.PI;
+      }
+
+      // --- ANIMATE THE SWORD SWING ---
+      if (isSwinging) {
+        swingTimer += 1 / 60 / swingDuration; // Move forward (60fps assumption)
+
+        if (swingTimer >= 1) {
+          // Swing finished - return to rest
+          isSwinging = false;
+          swingTimer = 0;
+          sword.rotation.x = 0;
+        } else {
+          // Mid-swing: rotate the sword in an arc
+          // sin() makes it smoothly go up and back down
+          sword.rotation.x = -Math.sin(swingTimer * Math.PI) * 1.5;
+        }
       }
 
       // Make the camera follow the knight
