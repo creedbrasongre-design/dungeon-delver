@@ -132,6 +132,33 @@
     knight.add(sword); // Attach to knight so it moves/rotates with him!
 
     // --- KEYBOARD INPUT TRACKING ---
+    // --- ENEMIES ---
+    // We use an array to store all enemies (so we can add many later!)
+    const enemies = [];
+
+    // Function to create a slime at any position
+    function createSlime(x, z) {
+      const slimeGeometry = new THREE.SphereGeometry(0.6, 12, 8);
+      const slimeMaterial = new THREE.MeshStandardMaterial({
+        color: 0x44dd44,    // Bright green
+        roughness: 0.4
+      });
+      const slime = new THREE.Mesh(slimeGeometry, slimeMaterial);
+      slime.position.set(x, 0.6, z); // Sit on the floor
+
+      // Give the slime some game properties (a custom object)
+      slime.userData = {
+        health: 3,
+        isAlive: true
+      };
+
+      scene.add(slime);
+      enemies.push(slime);
+      return slime;
+    }
+
+    // Create our first slime - 5 steps in front of the knight
+    createSlime(0, -5);
     // Tracks which direction the player wants to move
     const keys = {
       up: false,
