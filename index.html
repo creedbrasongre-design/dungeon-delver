@@ -133,7 +133,7 @@
       isSwinging = true;
       swingTimer = 0;
     }
-    
+
     // --- KEYBOARD INPUT TRACKING ---
     const keys = {
       up: false,
@@ -187,7 +187,7 @@
           swingTimer = 0;
           sword.rotation.y = 0;
         } else {
-          sword.rotation.y = -Math.sin(swingTimer * Math.PI) * 2.0;
+          sword.rotation.y = Math.sin(swingTimer * Math.PI) * 2.0;
         }
       }
 
