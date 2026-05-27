@@ -116,7 +116,12 @@
       const slimeMaterial = new THREE.MeshStandardMaterial({ color: 0x44dd44, roughness: 0.4 });
       const slime = new THREE.Mesh(slimeGeometry, slimeMaterial);
       slime.position.set(x, 0.6, z);
-      slime.userData = { health: 3, isAlive: true };
+      slime.userData = {
+        health: 3,
+        isAlive: true,
+        hitFlashTimer: 0,        // How long left of hit flash
+        normalColor: 0x44dd44    // Color to return to after flash
+      };
       scene.add(slime);
       enemies.push(slime);
       return slime;
@@ -172,6 +177,21 @@
       // Tick down the cooldown timer
       if (cooldownTimer > 0) {
         cooldownTimer -= 1 / 60;
+      }
+
+      // Update enemy hit flash timers
+      for (let i = 0; i < enemies.length; i++) {
+        const enemy = enemies[i];
+        if (!enemy.userData.isAlive) continue;
+
+        if (enemy.userData.hitFlashTimer > 0) {
+          enemy.userData.hitFlashTimer -= 1 / 60;
+
+          // When flash ends, return to normal color
+          if (enemy.userData.hitFlashTimer <= 0) {
+            enemy.material.color.setHex(enemy.userData.normalColor);
+          }
+        }
       }
 
       // Movement
@@ -234,6 +254,10 @@
               enemy.userData.health -= swordDamage;
               hasHitThisSwing = true;
               console.log("HIT! Slime HP:", enemy.userData.health);
+
+              // Start the hit flash effect
+              enemy.userData.hitFlashTimer = 0.15;     // Flash for 0.15 seconds
+              enemy.material.color.setHex(0xff4444);   // Turn red instantly
 
               // Check if enemy died
               if (enemy.userData.health <= 0) {
