@@ -126,11 +126,25 @@
     function animate() {
       requestAnimationFrame(animate);
 
-      // Move the knight based on which keys are held
-      if (keys.up) knight.position.z -= moveSpeed;     // Forward
-      if (keys.down) knight.position.z += moveSpeed;   // Backward
-      if (keys.left) knight.position.x -= moveSpeed;   // Left
-      if (keys.right) knight.position.x += moveSpeed;  // Right
+      // Figure out which direction the player wants to move
+      let moveX = 0;
+      let moveZ = 0;
+      if (keys.up) moveZ -= 1;      // Forward
+      if (keys.down) moveZ += 1;    // Backward
+      if (keys.left) moveX -= 1;    // Left
+      if (keys.right) moveX += 1;   // Right
+
+      // Are we actually moving? (Both numbers are zero = standing still)
+      const isMoving = (moveX !== 0 || moveZ !== 0);
+
+      // Apply the movement to the knight
+      knight.position.x += moveX * moveSpeed;
+      knight.position.z += moveZ * moveSpeed;
+
+      // Rotate the knight to face the direction it's moving
+      if (isMoving) {
+        knight.rotation.y = Math.atan2(moveX, moveZ) + Math.PI;
+      }
 
       // Make the camera follow the knight
       camera.position.x = knight.position.x;
