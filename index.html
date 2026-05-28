@@ -520,13 +520,17 @@
           enemy.userData.knockbackTimer -= 1 / 60;
           const nx = enemy.position.x + enemy.userData.knockbackX;
           const nz = enemy.position.z + enemy.userData.knockbackZ;
-          if (!isPositionBlocked(nx, enemy.position.z, enemy.userData.radius)) enemy.position.x = nx;
+          // Won't get knocked into walls OR over pits now
+          if (!isPositionBlocked(nx, enemy.position.z, enemy.userData.radius) &&
+              !isOverPit(nx, enemy.position.z)) enemy.position.x = nx;
           else enemy.userData.knockbackX = 0;
-          if (!isPositionBlocked(enemy.position.x, nz, enemy.userData.radius)) enemy.position.z = nz;
+          if (!isPositionBlocked(enemy.position.x, nz, enemy.userData.radius) &&
+              !isOverPit(enemy.position.x, nz)) enemy.position.z = nz;
           else enemy.userData.knockbackZ = 0;
           enemy.userData.knockbackX *= 0.85;
           enemy.userData.knockbackZ *= 0.85;
         } else if (knightState === 'alive') {
+          // --- CHASE AI --- (uses each enemy's OWN speed)
           const dx = knight.position.x - enemy.position.x;
           const dz = knight.position.z - enemy.position.z;
           const dist = Math.sqrt(dx * dx + dz * dz);
@@ -545,6 +549,7 @@
           }
         }
 
+        // --- CONTACT DAMAGE --- (must stay INSIDE the loop)
         const touchDist = knight.position.distanceTo(enemy.position);
         if (touchDist < knightRadius + enemy.userData.radius) {
           takeDamage(enemy.userData.damage);
