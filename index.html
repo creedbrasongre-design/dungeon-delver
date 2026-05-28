@@ -193,9 +193,14 @@
     };
 
     // --- CAMERA ROTATION STATE ---
-    // Tracks the camera's angle around the knight (separate from knight's facing!)
     let cameraAngle = 0;
-    const cameraRotateSpeed = 0.04; // How fast Q/E rotate the camera
+    const cameraRotateSpeed = 0.04;
+
+    // --- MOVEMENT DIRECTION TRACKING ---
+    // Stores the knight's "current movement heading" in world coords
+    let moveHeadingX = 0;
+    let moveHeadingZ = -1; // Default: face away from camera
+    const headingSmoothness = 0.12; // How fast knight's heading rotates with camera
 
     function setKey(event, isPressed) {
       const key = event.key;
@@ -288,10 +293,10 @@
       // Movement input (raw direction the player wants to go)
       let inputX = 0;
       let inputZ = 0;
-      if (keys.up) inputZ -= 1;      // UP = "forward" (into screen)
-      if (keys.down) inputZ += 1;    // DOWN = "backward"
-      if (keys.left) inputX -= 1;    // LEFT = "screen-left"
-      if (keys.right) inputX += 1;   // RIGHT = "screen-right"
+      if (keys.up) inputZ -= 1;
+      if (keys.down) inputZ += 1;
+      if (keys.left) inputX -= 1;
+      if (keys.right) inputX += 1;
 
       const isMoving = (inputX !== 0 || inputZ !== 0);
 
@@ -302,22 +307,32 @@
         inputZ = inputZ / length;
       }
 
-      // CAMERA-RELATIVE MOVEMENT
-      // Rotate the input direction by the camera's angle
-      // so UP always means "into the screen" no matter where the camera is
+      // BOTW-STYLE MOVEMENT
+      // Calculate the target direction from camera angle + input
       let moveX = 0;
       let moveZ = 0;
       if (isMoving) {
-        // Camera's "forward" direction (into the screen) on the floor plane
+        // Camera's forward and right vectors
         const camForwardX = -Math.sin(cameraAngle);
         const camForwardZ = -Math.cos(cameraAngle);
-        // Camera's "right" direction (perpendicular)
         const camRightX = Math.cos(cameraAngle);
         const camRightZ = -Math.sin(cameraAngle);
 
-        // Combine: input UP/DOWN goes along forward, LEFT/RIGHT goes along right
-        moveX = camForwardX * -inputZ + camRightX * inputX;
-        moveZ = camForwardZ * -inputZ + camRightZ * inputX;
+        // Where the player WANTS to go (camera-relative)
+        const targetHeadingX = camForwardX * -inputZ + camRightX * inputX;
+        const targetHeadingZ = camForwardZ * -inputZ + camRightZ * inputX;
+
+        // SMOOTHLY rotate the moveHeading toward the target (THIS IS THE BOTW MAGIC!)
+        // When camera changes while moving, heading smoothly follows
+        moveHeadingX += (targetHeadingX - moveHeadingX) * headingSmoothness;
+        moveHeadingZ += (targetHeadingZ - moveHeadingZ) * headingSmoothness;
+
+        // Normalize the heading so speed stays constant
+        const headingLength = Math.sqrt(moveHeadingX * moveHeadingX + moveHeadingZ * moveHeadingZ);
+        if (headingLength > 0.01) {
+          moveX = moveHeadingX / headingLength;
+          moveZ = moveHeadingZ / headingLength;
+        }
       }
 
       // Apply movement WITH COLLISION CHECKS
