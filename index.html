@@ -14,24 +14,17 @@
 
   <script>
     // =====================================================
-    // DUNGEON DELVER - Phase 4: Real Level Design (Simple Camera)
+    // DUNGEON DELVER - Phase 4: Stable Camera
     // =====================================================
 
     // --- SCENE SETUP ---
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x111111);
 
-    // --- CAMERA SETUP ---
-    const camera = new THREE.PerspectiveCamera(
-      60,
-      window.innerWidth / window.innerHeight,
-      0.1,
-      1000
-    );
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, 3.5, 6);
     camera.lookAt(0, 1.6, 0);
 
-    // --- RENDERER SETUP ---
     const renderer = new THREE.WebGLRenderer();
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
@@ -50,9 +43,10 @@
 
     // --- FLOOR ---
     const roomSize = 30;
-    const floorGeometry = new THREE.PlaneGeometry(roomSize, roomSize);
-    const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x666666 });
-    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(roomSize, roomSize),
+      new THREE.MeshStandardMaterial({ color: 0x666666 })
+    );
     floor.rotation.x = -Math.PI / 2;
     scene.add(floor);
 
@@ -62,14 +56,11 @@
     const wallHeight = 3;
 
     function createWall(x, z, width, depth) {
-      const wallGeometry = new THREE.BoxGeometry(width, wallHeight, depth);
-      const wall = new THREE.Mesh(wallGeometry, wallMaterial);
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(width, wallHeight, depth), wallMaterial);
       wall.position.set(x, wallHeight / 2, z);
       wall.userData = {
-        minX: x - width / 2,
-        maxX: x + width / 2,
-        minZ: z - depth / 2,
-        maxZ: z + depth / 2
+        minX: x - width / 2, maxX: x + width / 2,
+        minZ: z - depth / 2, maxZ: z + depth / 2
       };
       scene.add(wall);
       walls.push(wall);
@@ -90,31 +81,34 @@
 
     // --- THE KNIGHT ---
     const knightRadius = 0.4;
-    const knightGeometry = new THREE.CapsuleGeometry(knightRadius, 0.8, 4, 8);
-    const knightMaterial = new THREE.MeshStandardMaterial({ color: 0x4488ff });
-    const knight = new THREE.Mesh(knightGeometry, knightMaterial);
+    const knight = new THREE.Mesh(
+      new THREE.CapsuleGeometry(knightRadius, 0.8, 4, 8),
+      new THREE.MeshStandardMaterial({ color: 0x4488ff })
+    );
     knight.position.set(0, 0.8, 0);
     scene.add(knight);
 
     // --- THE SWORD ---
     const sword = new THREE.Group();
 
-    const bladeGeometry = new THREE.BoxGeometry(0.08, 0.08, 1.0);
-    const bladeMaterial = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.8, roughness: 0.3 });
-    const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
+    const blade = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 0.08, 1.0),
+      new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.8, roughness: 0.3 })
+    );
     blade.position.set(0, 0, -0.5);
     sword.add(blade);
 
-    const hiltGeometry = new THREE.BoxGeometry(0.12, 0.12, 0.25);
-    const hiltMaterial = new THREE.MeshStandardMaterial({ color: 0x6b3410 });
-    const hilt = new THREE.Mesh(hiltGeometry, hiltMaterial);
+    const hilt = new THREE.Mesh(
+      new THREE.BoxGeometry(0.12, 0.12, 0.25),
+      new THREE.MeshStandardMaterial({ color: 0x6b3410 })
+    );
     hilt.position.set(0, 0, 0.15);
     sword.add(hilt);
 
-    const guardGeometry = new THREE.BoxGeometry(0.35, 0.1, 0.08);
-    const guardMaterial = new THREE.MeshStandardMaterial({ color: 0x8b5a2b });
-    const guard = new THREE.Mesh(guardGeometry, guardMaterial);
-    guard.position.set(0, 0, 0);
+    const guard = new THREE.Mesh(
+      new THREE.BoxGeometry(0.35, 0.1, 0.08),
+      new THREE.MeshStandardMaterial({ color: 0x8b5a2b })
+    );
     sword.add(guard);
 
     sword.position.set(0.5, 0, -0.3);
@@ -125,21 +119,15 @@
     const enemies = [];
 
     function createSlime(x, z) {
-      const slimeGeometry = new THREE.SphereGeometry(0.6, 12, 8);
-      const slimeMaterial = new THREE.MeshStandardMaterial({ color: 0x44dd44, roughness: 0.4 });
-      const slime = new THREE.Mesh(slimeGeometry, slimeMaterial);
+      const slime = new THREE.Mesh(
+        new THREE.SphereGeometry(0.6, 12, 8),
+        new THREE.MeshStandardMaterial({ color: 0x44dd44, roughness: 0.4 })
+      );
       slime.position.set(x, 0.6, z);
       slime.userData = {
-        health: 5,
-        isAlive: true,
-        isDying: false,
-        deathTimer: 0,
-        hitFlashTimer: 0,
-        normalColor: 0x44dd44,
-        knockbackX: 0,
-        knockbackZ: 0,
-        knockbackTimer: 0,
-        radius: 0.6
+        health: 5, isAlive: true, isDying: false, deathTimer: 0,
+        hitFlashTimer: 0, normalColor: 0x44dd44,
+        knockbackX: 0, knockbackZ: 0, knockbackTimer: 0, radius: 0.6
       };
       scene.add(slime);
       enemies.push(slime);
@@ -150,29 +138,18 @@
     createSlime(10, 10);
     createSlime(-10, 10);
 
-    // --- COLLISION DETECTION ---
     function isPositionBlocked(x, z, radius) {
       for (let i = 0; i < walls.length; i++) {
         const w = walls[i].userData;
-        if (x + radius > w.minX &&
-            x - radius < w.maxX &&
-            z + radius > w.minZ &&
-            z - radius < w.maxZ) {
-          return true;
-        }
+        if (x + radius > w.minX && x - radius < w.maxX &&
+            z + radius > w.minZ && z - radius < w.maxZ) return true;
       }
       return false;
     }
 
     // --- SWORD SWING STATE ---
-    let isSwinging = false;
-    let swingTimer = 0;
-    let hasHitThisSwing = false;
-    let cooldownTimer = 0;
-    const swingDuration = 0.08;
-    const swingCooldown = 0.03;
-    const hitRange = 1.5;
-    const swordDamage = 1;
+    let isSwinging = false, swingTimer = 0, hasHitThisSwing = false, cooldownTimer = 0;
+    const swingDuration = 0.08, swingCooldown = 0.03, hitRange = 1.5, swordDamage = 1;
 
     function startSwing() {
       if (isSwinging || cooldownTimer > 0) return;
@@ -196,7 +173,6 @@
     window.addEventListener('keydown', (event) => setKey(event, true));
     window.addEventListener('keyup', (event) => setKey(event, false));
 
-    // --- MOVEMENT SETTINGS ---
     const moveSpeed = 0.15;
 
     // --- THE GAME LOOP ---
@@ -205,15 +181,13 @@
 
       if (cooldownTimer > 0) cooldownTimer -= 1 / 60;
 
-      // Update enemy effects
+      // Enemy effects
       for (let i = 0; i < enemies.length; i++) {
         const enemy = enemies[i];
 
         if (enemy.userData.isDying) {
           enemy.userData.deathTimer += 1 / 60;
-          const meltDuration = 1.5;
-          const progress = enemy.userData.deathTimer / meltDuration;
-
+          const progress = enemy.userData.deathTimer / 1.5;
           if (progress >= 1) {
             scene.remove(enemy);
             enemy.userData.isDying = false;
@@ -240,78 +214,47 @@
 
         if (enemy.userData.knockbackTimer > 0) {
           enemy.userData.knockbackTimer -= 1 / 60;
-
-          const newSlimeX = enemy.position.x + enemy.userData.knockbackX;
-          const newSlimeZ = enemy.position.z + enemy.userData.knockbackZ;
-
-          if (!isPositionBlocked(newSlimeX, enemy.position.z, enemy.userData.radius)) {
-            enemy.position.x = newSlimeX;
-          } else {
-            enemy.userData.knockbackX = 0;
-          }
-
-          if (!isPositionBlocked(enemy.position.x, newSlimeZ, enemy.userData.radius)) {
-            enemy.position.z = newSlimeZ;
-          } else {
-            enemy.userData.knockbackZ = 0;
-          }
-
+          const nx = enemy.position.x + enemy.userData.knockbackX;
+          const nz = enemy.position.z + enemy.userData.knockbackZ;
+          if (!isPositionBlocked(nx, enemy.position.z, enemy.userData.radius)) {
+            enemy.position.x = nx;
+          } else enemy.userData.knockbackX = 0;
+          if (!isPositionBlocked(enemy.position.x, nz, enemy.userData.radius)) {
+            enemy.position.z = nz;
+          } else enemy.userData.knockbackZ = 0;
           enemy.userData.knockbackX *= 0.85;
           enemy.userData.knockbackZ *= 0.85;
         }
       }
 
-      // --- MOVEMENT (camera-relative, using camera position) ---
-      let inputX = 0;
-      let inputZ = 0;
-      if (keys.up) inputZ -= 1;      // UP = into the screen
-      if (keys.down) inputZ += 1;    // DOWN = toward camera
-      if (keys.left) inputX += 0.5;    // LEFT = screen-left
-      if (keys.right) inputX -= 0.5;   // RIGHT = screen-right
-
-      const isMoving = (inputX !== 0 || inputZ !== 0);
-
-      if (isMoving) {
-        const length = Math.sqrt(inputX * inputX + inputZ * inputZ);
-        inputX = inputX / length;
-        inputZ = inputZ / length;
-      }
-
-      // Figure out which way is "forward" from camera's view
-      // Camera is at angle knight.rotation.y, so forward = -that direction
+      // --- MOVEMENT: WORLD-RELATIVE (no feedback loop!) ---
       let moveX = 0;
       let moveZ = 0;
-      if (isMoving) {
-        // Forward direction from camera (away from camera, toward knight)
-        const camAngle = knight.rotation.y;
-        const forwardX = -Math.sin(camAngle);
-        const forwardZ = -Math.cos(camAngle);
-        // Right direction (perpendicular)
-        const rightX = -Math.cos(camAngle);
-        const rightZ = Math.sin(camAngle);
+      if (keys.up) moveZ -= 1;
+      if (keys.down) moveZ += 1;
+      if (keys.left) moveX += 1;
+      if (keys.right) moveX -= 1;
 
-        // Combine: UP/DOWN use forward, LEFT/RIGHT use right
-        moveX = forwardX * -inputZ + rightX * inputX;
-        moveZ = forwardZ * -inputZ + rightZ * inputX;
+      const isMoving = (moveX !== 0 || moveZ !== 0);
+
+      if (isMoving) {
+        const length = Math.sqrt(moveX * moveX + moveZ * moveZ);
+        moveX /= length;
+        moveZ /= length;
       }
 
       const newX = knight.position.x + moveX * moveSpeed;
       const newZ = knight.position.z + moveZ * moveSpeed;
+      if (!isPositionBlocked(newX, knight.position.z, knightRadius)) knight.position.x = newX;
+      if (!isPositionBlocked(knight.position.x, newZ, knightRadius)) knight.position.z = newZ;
 
-      if (!isPositionBlocked(newX, knight.position.z, knightRadius)) {
-        knight.position.x = newX;
-      }
-      if (!isPositionBlocked(knight.position.x, newZ, knightRadius)) {
-        knight.position.z = newZ;
-      }
-
-      // Smooth knight rotation toward movement direction
+      // Visual rotation (does NOT affect movement!)
       if (isMoving) {
         const targetRotation = Math.atan2(moveX, moveZ) + Math.PI;
         let angleDiff = targetRotation - knight.rotation.y;
         while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
         while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-        knight.rotation.y += angleDiff * 0.08;
+        knight.rotation.y += angleDiff * 0.1;
       }
 
       // Sword swing + hit detection
@@ -331,22 +274,19 @@
           for (let i = 0; i < enemies.length; i++) {
             const enemy = enemies[i];
             if (!enemy.userData.isAlive) continue;
-
             const distance = knight.position.distanceTo(enemy.position);
             if (distance < hitRange) {
               enemy.userData.health -= swordDamage;
               hasHitThisSwing = true;
               console.log("HIT! Slime HP:", enemy.userData.health);
-
               enemy.userData.hitFlashTimer = 0.15;
               enemy.material.color.setHex(0xff4444);
 
-              const knockbackDirX = enemy.position.x - knight.position.x;
-              const knockbackDirZ = enemy.position.z - knight.position.z;
-              const knockbackLength = Math.sqrt(knockbackDirX * knockbackDirX + knockbackDirZ * knockbackDirZ);
-              const knockbackStrength = 0.3;
-              enemy.userData.knockbackX = (knockbackDirX / knockbackLength) * knockbackStrength;
-              enemy.userData.knockbackZ = (knockbackDirZ / knockbackLength) * knockbackStrength;
+              const kx = enemy.position.x - knight.position.x;
+              const kz = enemy.position.z - knight.position.z;
+              const kl = Math.sqrt(kx * kx + kz * kz);
+              enemy.userData.knockbackX = (kx / kl) * 0.3;
+              enemy.userData.knockbackZ = (kz / kl) * 0.3;
               enemy.userData.knockbackTimer = 0.2;
 
               if (enemy.userData.health <= 0) {
@@ -355,17 +295,16 @@
                 enemy.userData.deathTimer = 0;
                 console.log("Slime defeated! Melting...");
               }
-
               break;
             }
           }
         }
       }
 
-      // --- CAMERA: simple chase camera behind the knight ---
+      // --- CAMERA: chase camera behind the knight ---
       const cameraDistance = 6;
       const cameraHeight = 3.5;
-      const cameraSmoothness = 0.08;
+      const cameraSmoothness = 0.05;
 
       const knightAngle = knight.rotation.y;
       const targetCameraX = knight.position.x + Math.sin(knightAngle) * cameraDistance;
@@ -374,7 +313,6 @@
       camera.position.x += (targetCameraX - camera.position.x) * cameraSmoothness;
       camera.position.y = knight.position.y + cameraHeight;
       camera.position.z += (targetCameraZ - camera.position.z) * cameraSmoothness;
-
       camera.lookAt(knight.position.x, 1.6, knight.position.z);
 
       renderer.render(scene, camera);
