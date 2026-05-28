@@ -282,8 +282,8 @@
       }
 
       // Player rotates camera with Q/E (do this BEFORE movement so directions are accurate)
-      if (keys.cameraLeft) cameraAngle -= cameraRotateSpeed;
-      if (keys.cameraRight) cameraAngle += cameraRotateSpeed;
+      if (keys.cameraLeft) cameraAngle += cameraRotateSpeed;
+      if (keys.cameraRight) cameraAngle -= cameraRotateSpeed;
 
       // Movement input (raw direction the player wants to go)
       let inputX = 0;
