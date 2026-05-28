@@ -5,16 +5,28 @@
   <style>
     body { margin: 0; overflow: hidden; }
     canvas { display: block; }
+    #fadeOverlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: black;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s ease;
+      z-index: 100;
+    }
   </style>
 </head>
 <body>
+
+  <div id="fadeOverlay"></div>
 
   <!-- Load the Three.js library -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 
   <script>
     // =====================================================
-    // DUNGEON DELVER - Phase 4 (OOT-style camera, no spiral)
+    // DUNGEON DELVER - Phase 4: Pits & Respawn!
     // =====================================================
 
     const scene = new THREE.Scene();
@@ -25,6 +37,8 @@
     const renderer = new THREE.WebGLRenderer();
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
+
+    const fadeOverlay = document.getElementById('fadeOverlay');
 
     // --- LIGHTING ---
     scene.add(new THREE.AmbientLight(0xffffff, 0.6));
@@ -70,6 +84,32 @@
     createWall(-8, 6, 0.5, 6);
     createWall(8, -6, 6, 0.5);
 
+    // --- PITS! ---
+    // Each pit is a dark square on the floor. Fall in = respawn!
+    const pits = [];
+
+    function createPit(x, z, size) {
+      // Make the pit look dark/scary
+      const pitGeometry = new THREE.PlaneGeometry(size, size);
+      const pitMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+      const pit = new THREE.Mesh(pitGeometry, pitMaterial);
+      pit.rotation.x = -Math.PI / 2;
+      pit.position.set(x, 0.01, z); // Slightly above floor to avoid z-fighting
+
+      pit.userData = {
+        minX: x - size / 2, maxX: x + size / 2,
+        minZ: z - size / 2, maxZ: z + size / 2
+      };
+      scene.add(pit);
+      pits.push(pit);
+      return pit;
+    }
+
+    // Place some pits around the dungeon!
+    createPit(3, -3, 2);      // Near spawn (be careful!)
+    createPit(-3, 8, 3);      // Bigger pit
+    createPit(10, -2, 2.5);   // On the way to a slime
+
     // --- KNIGHT ---
     const knightRadius = 0.4;
     const knight = new THREE.Mesh(
@@ -78,6 +118,10 @@
     );
     knight.position.set(0, 0.8, 0);
     scene.add(knight);
+
+    // --- SPAWN POINT ---
+    // Where the knight respawns when he falls
+    const spawnPoint = { x: 0, z: 0, y: 0.8 };
 
     // --- SWORD ---
     const sword = new THREE.Group();
@@ -133,11 +177,53 @@
       return false;
     }
 
+    // --- PIT DETECTION ---
+    // Returns true if a position is over any pit
+    function isOverPit(x, z) {
+      for (let i = 0; i < pits.length; i++) {
+        const p = pits[i].userData;
+        if (x > p.minX && x < p.maxX && z > p.minZ && z < p.maxZ) return true;
+      }
+      return false;
+    }
+
+    // --- KNIGHT STATE MACHINE ---
+    let knightState = 'alive'; // 'alive', 'falling', 'respawning'
+    let fallTimer = 0;
+    const fallDuration = 1.0; // How long falling animation takes
+
+    function startFalling() {
+      if (knightState !== 'alive') return; // Already falling/respawning
+      knightState = 'falling';
+      fallTimer = 0;
+      console.log("AAAAHHHHH! Falling into pit!");
+    }
+
+    function respawnKnight() {
+      knightState = 'respawning';
+      fadeOverlay.style.opacity = '1'; // Fade to black
+
+      setTimeout(() => {
+        // Teleport back to spawn
+        knight.position.set(spawnPoint.x, spawnPoint.y, spawnPoint.z);
+        knight.rotation.y = 0;
+        knight.scale.set(1, 1, 1);
+
+        // Fade back in
+        fadeOverlay.style.opacity = '0';
+        setTimeout(() => {
+          knightState = 'alive';
+          console.log("Respawned!");
+        }, 400);
+      }, 400);
+    }
+
     // --- COMBAT STATE ---
     let isSwinging = false, swingTimer = 0, hasHitThisSwing = false, cooldownTimer = 0;
     const swingDuration = 0.08, swingCooldown = 0.03, hitRange = 1.5, swordDamage = 1;
 
     function startSwing() {
+      if (knightState !== 'alive') return; // Can't swing while falling!
       if (isSwinging || cooldownTimer > 0) return;
       isSwinging = true;
       swingTimer = 0;
@@ -159,12 +245,9 @@
 
     const moveSpeed = 0.15;
 
-    // --- CAMERA STATE (separate from knight!) ---
-    let cameraAngle = 0; // Camera's own angle, lazy-follows knight
+    // --- CAMERA ---
     const cameraDistance = 6;
     const cameraHeight = 3.5;
-
-    // Initialize camera position
     camera.position.set(0, knight.position.y + cameraHeight, cameraDistance);
     camera.lookAt(0, 1.6, 0);
 
@@ -174,7 +257,7 @@
 
       if (cooldownTimer > 0) cooldownTimer -= 1 / 60;
 
-      // Enemy effects
+      // Enemy effects (always update, even during fall/respawn)
       for (let i = 0; i < enemies.length; i++) {
         const enemy = enemies[i];
         if (enemy.userData.isDying) {
@@ -214,84 +297,99 @@
         }
       }
 
-      // --- TANK CONTROLS ---
-      // LEFT/RIGHT turn the knight, UP/DOWN walk forward/backward
-      const turnSpeed = 0.05;
+      // --- KNIGHT STATE HANDLING ---
+      if (knightState === 'falling') {
+        // Fall animation - sink down and shrink
+        fallTimer += 1 / 60;
+        const progress = fallTimer / fallDuration;
 
-      // Turning (FLIPPED so LEFT = counter-clockwise, RIGHT = clockwise)
-      if (keys.left) knight.rotation.y += turnSpeed;
-      if (keys.right) knight.rotation.y -= turnSpeed;
-
-      // Walking (UP = forward, DOWN = backward at half speed)
-      let walkAmount = 0;
-      if (keys.up) walkAmount = 1;
-      if (keys.down) walkAmount = -0.5;
-
-      const isMoving = (walkAmount !== 0);
-
-      // Calculate forward direction (FLIPPED so UP actually goes forward)
-      let moveX = 0, moveZ = 0;
-      if (isMoving) {
-        const forwardX = -Math.sin(knight.rotation.y);
-        const forwardZ = -Math.cos(knight.rotation.y);
-        moveX = forwardX * walkAmount;
-        moveZ = forwardZ * walkAmount;
-      }
-
-      // Apply movement with collision checks
-      const newX = knight.position.x + moveX * moveSpeed;
-      const newZ = knight.position.z + moveZ * moveSpeed;
-      if (!isPositionBlocked(newX, knight.position.z, knightRadius)) knight.position.x = newX;
-      if (!isPositionBlocked(knight.position.x, newZ, knightRadius)) knight.position.z = newZ;
-
-      // Sword swing + hit detection
-      if (isSwinging) {
-        swingTimer += 1 / 60 / swingDuration;
-        if (swingTimer >= 1) {
-          isSwinging = false;
-          swingTimer = 0;
-          cooldownTimer = swingCooldown;
-          sword.rotation.y = -0.3;
+        if (progress >= 1) {
+          respawnKnight();
         } else {
-          sword.rotation.y = -1.5 + swingTimer * 3.0;
+          // Sink and shrink dramatically
+          knight.position.y = 0.8 - progress * 2.5;       // Sink down 2.5 units
+          knight.scale.set(1 - progress * 0.3, 1 - progress * 0.5, 1 - progress * 0.3);
+          knight.rotation.z = progress * 0.5;             // Tilt as falling
         }
-        if (!hasHitThisSwing) {
-          for (let i = 0; i < enemies.length; i++) {
-            const enemy = enemies[i];
-            if (!enemy.userData.isAlive) continue;
-            const distance = knight.position.distanceTo(enemy.position);
-            if (distance < hitRange) {
-              enemy.userData.health -= swordDamage;
-              hasHitThisSwing = true;
-              console.log("HIT! Slime HP:", enemy.userData.health);
-              enemy.userData.hitFlashTimer = 0.15;
-              enemy.material.color.setHex(0xff4444);
-              const kx = enemy.position.x - knight.position.x;
-              const kz = enemy.position.z - knight.position.z;
-              const kl = Math.sqrt(kx * kx + kz * kz);
-              enemy.userData.knockbackX = (kx / kl) * 0.3;
-              enemy.userData.knockbackZ = (kz / kl) * 0.3;
-              enemy.userData.knockbackTimer = 0.2;
-              if (enemy.userData.health <= 0) {
-                enemy.userData.isAlive = false;
-                enemy.userData.isDying = true;
-                enemy.userData.deathTimer = 0;
-                console.log("Slime defeated!");
+      } else if (knightState === 'alive') {
+        // --- TANK CONTROLS ---
+        const turnSpeed = 0.05;
+        if (keys.left) knight.rotation.y += turnSpeed;
+        if (keys.right) knight.rotation.y -= turnSpeed;
+
+        let walkAmount = 0;
+        if (keys.up) walkAmount = 1;
+        if (keys.down) walkAmount = -0.5;
+
+        const isMoving = (walkAmount !== 0);
+
+        let moveX = 0, moveZ = 0;
+        if (isMoving) {
+          const forwardX = -Math.sin(knight.rotation.y);
+          const forwardZ = -Math.cos(knight.rotation.y);
+          moveX = forwardX * walkAmount;
+          moveZ = forwardZ * walkAmount;
+        }
+
+        const newX = knight.position.x + moveX * moveSpeed;
+        const newZ = knight.position.z + moveZ * moveSpeed;
+        if (!isPositionBlocked(newX, knight.position.z, knightRadius)) knight.position.x = newX;
+        if (!isPositionBlocked(knight.position.x, newZ, knightRadius)) knight.position.z = newZ;
+
+        // PIT CHECK! Did we walk over a pit?
+        if (isOverPit(knight.position.x, knight.position.z)) {
+          startFalling();
+        }
+
+        // Sword swing + hit detection (only when alive)
+        if (isSwinging) {
+          swingTimer += 1 / 60 / swingDuration;
+          if (swingTimer >= 1) {
+            isSwinging = false;
+            swingTimer = 0;
+            cooldownTimer = swingCooldown;
+            sword.rotation.y = -0.3;
+          } else {
+            sword.rotation.y = -1.5 + swingTimer * 3.0;
+          }
+          if (!hasHitThisSwing) {
+            for (let i = 0; i < enemies.length; i++) {
+              const enemy = enemies[i];
+              if (!enemy.userData.isAlive) continue;
+              const distance = knight.position.distanceTo(enemy.position);
+              if (distance < hitRange) {
+                enemy.userData.health -= swordDamage;
+                hasHitThisSwing = true;
+                console.log("HIT! Slime HP:", enemy.userData.health);
+                enemy.userData.hitFlashTimer = 0.15;
+                enemy.material.color.setHex(0xff4444);
+                const kx = enemy.position.x - knight.position.x;
+                const kz = enemy.position.z - knight.position.z;
+                const kl = Math.sqrt(kx * kx + kz * kz);
+                enemy.userData.knockbackX = (kx / kl) * 0.3;
+                enemy.userData.knockbackZ = (kz / kl) * 0.3;
+                enemy.userData.knockbackTimer = 0.2;
+                if (enemy.userData.health <= 0) {
+                  enemy.userData.isAlive = false;
+                  enemy.userData.isDying = true;
+                  enemy.userData.deathTimer = 0;
+                  console.log("Slime defeated!");
+                }
+                break;
               }
-              break;
             }
           }
         }
       }
+      // (No else for 'respawning' - knight just sits there during the fade)
 
-      // --- CAMERA: Smooth chase camera behind knight ---
+      // --- CAMERA ---
       const cameraSmoothness = 0.1;
       const knightAngle = knight.rotation.y;
       const targetCameraX = knight.position.x + Math.sin(knightAngle) * cameraDistance;
       const targetCameraZ = knight.position.z + Math.cos(knightAngle) * cameraDistance;
-
       camera.position.x += (targetCameraX - camera.position.x) * cameraSmoothness;
-      camera.position.y = knight.position.y + cameraHeight;
+      camera.position.y = knight.position.y + cameraHeight + 1; // a bit higher to see down into pits
       camera.position.z += (targetCameraZ - camera.position.z) * cameraSmoothness;
       camera.lookAt(knight.position.x, 1.6, knight.position.z);
 
