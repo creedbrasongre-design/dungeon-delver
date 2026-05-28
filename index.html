@@ -164,8 +164,8 @@
     const ENEMY_TYPES = {
       greenSlime: { color: 0x44dd44, health: 5,  speed: 0.05625, radius: 0.6,  damage: 1, shape: 'slime' }, // baseline
       redSlime:   { color: 0xff5533, health: 3,  speed: 0.09,    radius: 0.55, damage: 1, shape: 'slime' }, // fire: fast + fragile
-      blueSlime:  { color: 0x55ccff, health: 8,  speed: 0.035,   radius: 0.65, damage: 1, shape: 'slime' }, // ice: slow + tanky
-      ogre:       { color: 0x998877, health: 15, speed: 0.045,   radius: 0.9,  damage: 2, shape: 'ogre'  }, // big bruiser, hits hard
+      blueSlime:  { color: 0x55ccff, health: 6,  speed: 0.035,   radius: 0.65, damage: 1, shape: 'slime' }, // ice: slow + tanky
+      ogre:       { color: 0x998877, health: 8, speed: 0.045,   radius: 0.9,  damage: 2, shape: 'ogre'  }, // big bruiser, hits hard
     };
 
     // --- ENEMIES ---
@@ -304,7 +304,7 @@
 
     // --- COMBAT STATE ---
     let isSwinging = false, swingTimer = 0, hasHitThisSwing = false, cooldownTimer = 0;
-    const swingDuration = 0.08, swingCooldown = 0.03, hitRange = 1.5, swordDamage = 1;
+    const swingDuration = 0.08, swingCooldown = 0.0001, hitRange = 2, swordDamage = 1;
 
     function startSwing() {
       if (knightState !== 'alive') return; // Can't swing while falling!
