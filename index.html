@@ -261,20 +261,38 @@
         }
       }
 
-      // --- MOVEMENT (simple world-relative) ---
-      let moveX = 0;
-      let moveZ = 0;
-      if (keys.up) moveZ -= 1;
-      if (keys.down) moveZ += 1;
-      if (keys.left) moveX -= 1;
-      if (keys.right) moveX += 1;
+      // --- MOVEMENT (camera-relative, using camera position) ---
+      let inputX = 0;
+      let inputZ = 0;
+      if (keys.up) inputZ -= 1;      // UP = into the screen
+      if (keys.down) inputZ += 1;    // DOWN = toward camera
+      if (keys.left) inputX -= 1;    // LEFT = screen-left
+      if (keys.right) inputX += 1;   // RIGHT = screen-right
 
-      const isMoving = (moveX !== 0 || moveZ !== 0);
+      const isMoving = (inputX !== 0 || inputZ !== 0);
 
       if (isMoving) {
-        const length = Math.sqrt(moveX * moveX + moveZ * moveZ);
-        moveX = moveX / length;
-        moveZ = moveZ / length;
+        const length = Math.sqrt(inputX * inputX + inputZ * inputZ);
+        inputX = inputX / length;
+        inputZ = inputZ / length;
+      }
+
+      // Figure out which way is "forward" from camera's view
+      // Camera is at angle knight.rotation.y, so forward = -that direction
+      let moveX = 0;
+      let moveZ = 0;
+      if (isMoving) {
+        // Forward direction from camera (away from camera, toward knight)
+        const camAngle = knight.rotation.y;
+        const forwardX = -Math.sin(camAngle);
+        const forwardZ = -Math.cos(camAngle);
+        // Right direction (perpendicular)
+        const rightX = -Math.cos(camAngle);
+        const rightZ = Math.sin(camAngle);
+
+        // Combine: UP/DOWN use forward, LEFT/RIGHT use right
+        moveX = forwardX * -inputZ + rightX * inputX;
+        moveZ = forwardZ * -inputZ + rightZ * inputX;
       }
 
       const newX = knight.position.x + moveX * moveSpeed;
