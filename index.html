@@ -14,7 +14,7 @@
 
   <script>
     // =====================================================
-    // DUNGEON DELVER - Phase 3: First Combat (with Knockback!)
+    // DUNGEON DELVER - Phase 4: Real Level Design
     // =====================================================
 
     // --- SCENE SETUP ---
@@ -48,36 +48,52 @@
     moonLight.position.set(5, 10, 5);
     scene.add(moonLight);
 
-    // --- BUILDING THE ROOM ---
-    const roomSize = 20;
-
+    // --- FLOOR ---
+    const roomSize = 30; // Bigger room to fit interior walls!
     const floorGeometry = new THREE.PlaneGeometry(roomSize, roomSize);
     const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x666666 });
     const floor = new THREE.Mesh(floorGeometry, floorMaterial);
     floor.rotation.x = -Math.PI / 2;
     scene.add(floor);
 
+    // --- WALL SYSTEM ---
+    // All walls are stored in an array for collision detection
+    const walls = [];
     const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x554433 });
     const wallHeight = 3;
 
-    const backWall = new THREE.Mesh(new THREE.BoxGeometry(roomSize, wallHeight, 0.5), wallMaterial);
-    backWall.position.set(0, wallHeight / 2, -roomSize / 2);
-    scene.add(backWall);
+    // Function to create a wall at any position with any size
+    function createWall(x, z, width, depth) {
+      const wallGeometry = new THREE.BoxGeometry(width, wallHeight, depth);
+      const wall = new THREE.Mesh(wallGeometry, wallMaterial);
+      wall.position.set(x, wallHeight / 2, z);
+      // Save collision info on the wall
+      wall.userData = {
+        minX: x - width / 2,
+        maxX: x + width / 2,
+        minZ: z - depth / 2,
+        maxZ: z + depth / 2
+      };
+      scene.add(wall);
+      walls.push(wall);
+      return wall;
+    }
 
-    const frontWall = new THREE.Mesh(new THREE.BoxGeometry(roomSize, wallHeight, 0.5), wallMaterial);
-    frontWall.position.set(0, wallHeight / 2, roomSize / 2);
-    scene.add(frontWall);
+    // OUTER WALLS (border of the room)
+    createWall(0, -roomSize / 2, roomSize, 0.5);  // North wall
+    createWall(0, roomSize / 2, roomSize, 0.5);   // South wall
+    createWall(-roomSize / 2, 0, 0.5, roomSize);  // West wall
+    createWall(roomSize / 2, 0, 0.5, roomSize);   // East wall
 
-    const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.5, wallHeight, roomSize), wallMaterial);
-    leftWall.position.set(-roomSize / 2, wallHeight / 2, 0);
-    scene.add(leftWall);
-
-    const rightWall = new THREE.Mesh(new THREE.BoxGeometry(0.5, wallHeight, roomSize), wallMaterial);
-    rightWall.position.set(roomSize / 2, wallHeight / 2, 0);
-    scene.add(rightWall);
+    // INTERIOR WALLS - creating corridors and rooms!
+    createWall(-5, -5, 8, 0.5);    // Upper-left wall (horizontal)
+    createWall(5, 5, 0.5, 8);      // Lower-right wall (vertical)
+    createWall(-8, 6, 0.5, 6);     // Lower-left wall (vertical)
+    createWall(8, -6, 6, 0.5);     // Upper-right wall (horizontal)
 
     // --- THE KNIGHT ---
-    const knightGeometry = new THREE.CapsuleGeometry(0.4, 0.8, 4, 8);
+    const knightRadius = 0.4; // Used for collision detection!
+    const knightGeometry = new THREE.CapsuleGeometry(knightRadius, 0.8, 4, 8);
     const knightMaterial = new THREE.MeshStandardMaterial({ color: 0x4488ff });
     const knight = new THREE.Mesh(knightGeometry, knightMaterial);
     knight.position.set(0, 0.8, 0);
@@ -119,8 +135,8 @@
       slime.userData = {
         health: 5,
         isAlive: true,
-        isDying: false,          // Currently melting?
-        deathTimer: 0,           // How far into the death animation
+        isDying: false,
+        deathTimer: 0,
         hitFlashTimer: 0,
         normalColor: 0x44dd44,
         knockbackX: 0,
@@ -132,7 +148,26 @@
       return slime;
     }
 
-    createSlime(0, -5);
+    // Place slimes in different parts of the dungeon to explore!
+    createSlime(-10, -10);
+    createSlime(10, 10);
+    createSlime(-10, 10);
+
+    // --- COLLISION DETECTION FUNCTION ---
+    // Checks if a position would overlap any wall (with player radius)
+    function isPositionBlocked(x, z) {
+      for (let i = 0; i < walls.length; i++) {
+        const w = walls[i].userData;
+        // Check if the knight's circle overlaps the wall's rectangle
+        if (x + knightRadius > w.minX &&
+            x - knightRadius < w.maxX &&
+            z + knightRadius > w.minZ &&
+            z - knightRadius < w.maxZ) {
+          return true; // Blocked!
+        }
+      }
+      return false; // Free to move
+    }
 
     // --- SWORD SWING STATE ---
     let isSwinging = false;
@@ -152,12 +187,7 @@
     }
 
     // --- KEYBOARD INPUT TRACKING ---
-    const keys = {
-      up: false,
-      down: false,
-      left: false,
-      right: false
-    };
+    const keys = { up: false, down: false, left: false, right: false };
 
     function setKey(event, isPressed) {
       const key = event.key;
@@ -179,62 +209,51 @@
       requestAnimationFrame(animate);
 
       // Tick down the cooldown timer
-      if (cooldownTimer > 0) {
-        cooldownTimer -= 1 / 60;
-      }
+      if (cooldownTimer > 0) cooldownTimer -= 1 / 60;
 
       // Update enemy effects (flash + knockback + death melt)
       for (let i = 0; i < enemies.length; i++) {
         const enemy = enemies[i];
 
-        // --- DEATH MELT ANIMATION ---
         if (enemy.userData.isDying) {
           enemy.userData.deathTimer += 1 / 60;
-          const meltDuration = 1.5; // Takes 1.5 seconds to melt
-          const progress = enemy.userData.deathTimer / meltDuration; // 0 to 1
+          const meltDuration = 1.5;
+          const progress = enemy.userData.deathTimer / meltDuration;
 
           if (progress >= 1) {
-            // Fully melted - remove it!
             scene.remove(enemy);
             enemy.userData.isDying = false;
           } else {
-            // Flatten (squash height), spread (widen), then shrink away
-            const flatten = 1 - progress;             // Height shrinks: 1 → 0
-            const spread = 1 + progress * 0.8;         // Width grows: 1 → 1.8
-            const shrink = 1 - progress;               // Overall shrink near end
-
-            enemy.scale.y = flatten * 0.5;             // Squash down fast
-            enemy.scale.x = spread * shrink;           // Spread then shrink
+            const flatten = 1 - progress;
+            const spread = 1 + progress * 0.8;
+            const shrink = 1 - progress;
+            enemy.scale.y = flatten * 0.5;
+            enemy.scale.x = spread * shrink;
             enemy.scale.z = spread * shrink;
-            enemy.position.y = 0.6 * flatten;          // Sink toward floor
+            enemy.position.y = 0.6 * flatten;
           }
-          continue; // Skip other effects while dying
+          continue;
         }
 
         if (!enemy.userData.isAlive) continue;
 
-        // Hit flash effect
         if (enemy.userData.hitFlashTimer > 0) {
           enemy.userData.hitFlashTimer -= 1 / 60;
-
           if (enemy.userData.hitFlashTimer <= 0) {
             enemy.material.color.setHex(enemy.userData.normalColor);
           }
         }
 
-        // Knockback effect
         if (enemy.userData.knockbackTimer > 0) {
           enemy.userData.knockbackTimer -= 1 / 60;
-
           enemy.position.x += enemy.userData.knockbackX;
           enemy.position.z += enemy.userData.knockbackZ;
-
           enemy.userData.knockbackX *= 0.85;
           enemy.userData.knockbackZ *= 0.85;
         }
       }
 
-      // Movement
+      // Movement input
       let moveX = 0;
       let moveZ = 0;
       if (keys.up) moveZ -= 1;
@@ -244,29 +263,34 @@
 
       const isMoving = (moveX !== 0 || moveZ !== 0);
 
-      // Normalize diagonal movement
       if (isMoving) {
         const length = Math.sqrt(moveX * moveX + moveZ * moveZ);
         moveX = moveX / length;
         moveZ = moveZ / length;
       }
 
-      // Apply movement
-      knight.position.x += moveX * moveSpeed;
-      knight.position.z += moveZ * moveSpeed;
+      // Apply movement WITH COLLISION CHECKS
+      // We check X and Z separately so the knight can "slide" along walls
+      const newX = knight.position.x + moveX * moveSpeed;
+      const newZ = knight.position.z + moveZ * moveSpeed;
+
+      if (!isPositionBlocked(newX, knight.position.z)) {
+        knight.position.x = newX;
+      }
+      if (!isPositionBlocked(knight.position.x, newZ)) {
+        knight.position.z = newZ;
+      }
 
       // Smooth rotation
       if (isMoving) {
         const targetRotation = Math.atan2(moveX, moveZ) + Math.PI;
-
         let angleDiff = targetRotation - knight.rotation.y;
         while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
         while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-
         knight.rotation.y += angleDiff * 0.2;
       }
 
-      // Sword swing animation
+      // Sword swing animation + hit detection
       if (isSwinging) {
         swingTimer += 1 / 60 / swingDuration;
 
@@ -279,7 +303,6 @@
           sword.rotation.y = -1.5 + swingTimer * 3.0;
         }
 
-        // HIT DETECTION
         if (!hasHitThisSwing) {
           for (let i = 0; i < enemies.length; i++) {
             const enemy = enemies[i];
@@ -287,27 +310,21 @@
 
             const distance = knight.position.distanceTo(enemy.position);
             if (distance < hitRange) {
-              // HIT! Damage the enemy
               enemy.userData.health -= swordDamage;
               hasHitThisSwing = true;
               console.log("HIT! Slime HP:", enemy.userData.health);
 
-              // Start hit flash
               enemy.userData.hitFlashTimer = 0.15;
               enemy.material.color.setHex(0xff4444);
 
-              // KNOCKBACK! Calculate direction from knight to slime
               const knockbackDirX = enemy.position.x - knight.position.x;
               const knockbackDirZ = enemy.position.z - knight.position.z;
               const knockbackLength = Math.sqrt(knockbackDirX * knockbackDirX + knockbackDirZ * knockbackDirZ);
-
-              // Normalize and apply knockback force
               const knockbackStrength = 0.3;
               enemy.userData.knockbackX = (knockbackDirX / knockbackLength) * knockbackStrength;
               enemy.userData.knockbackZ = (knockbackDirZ / knockbackLength) * knockbackStrength;
               enemy.userData.knockbackTimer = 0.2;
 
-              // Check if enemy died - start the melt animation!
               if (enemy.userData.health <= 0) {
                 enemy.userData.isAlive = false;
                 enemy.userData.isDying = true;
