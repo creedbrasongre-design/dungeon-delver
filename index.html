@@ -311,7 +311,7 @@
         let angleDiff = targetRotation - knight.rotation.y;
         while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
         while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-        knight.rotation.y += angleDiff * 0.08;
+        knight.rotation.y += angleDiff * 0.016;
       }
 
       // Sword swing + hit detection
