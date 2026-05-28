@@ -115,7 +115,7 @@
       const slimeGeometry = new THREE.SphereGeometry(0.6, 12, 8);
       const slimeMaterial = new THREE.MeshStandardMaterial({ color: 0x44dd44, roughness: 0.4 });
       const slime = new THREE.Mesh(slimeGeometry, slimeMaterial);
-      slime.position.set(x, -0.5, z);
+      slime.position.set(x, 0, z);
       slime.userData = {
         health: 5,
         isAlive: true,
