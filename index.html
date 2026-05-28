@@ -266,8 +266,8 @@
       let inputZ = 0;
       if (keys.up) inputZ -= 1;      // UP = into the screen
       if (keys.down) inputZ += 1;    // DOWN = toward camera
-      if (keys.left) inputX -= 1;    // LEFT = screen-left
-      if (keys.right) inputX += 1;   // RIGHT = screen-right
+      if (keys.left) inputX += 1;    // LEFT = screen-left
+      if (keys.right) inputX -= 1;   // RIGHT = screen-right
 
       const isMoving = (inputX !== 0 || inputZ !== 0);
 
@@ -309,8 +309,8 @@
       if (isMoving) {
         const targetRotation = Math.atan2(moveX, moveZ) + Math.PI;
         let angleDiff = targetRotation - knight.rotation.y;
-        while (angleDiff > Math.PI) angleDiff += Math.PI * 2;
-        while (angleDiff < -Math.PI) angleDiff -= Math.PI * 2;
+        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
         knight.rotation.y += angleDiff * 0.08;
       }
 
