@@ -214,45 +214,36 @@
         }
       }
 
-      // --- MOVEMENT (camera-relative using LAZY cameraAngle) ---
-      let inputX = 0, inputZ = 0;
-      if (keys.up) inputZ -= 1;
-      if (keys.down) inputZ += 1;
-      if (keys.left) inputX -= 1;
-      if (keys.right) inputX += 1;
+      // --- TANK CONTROLS ---
+      // LEFT/RIGHT turn the knight, UP/DOWN walk forward/backward
+      const turnSpeed = 0.05;
 
-      const isMoving = (inputX !== 0 || inputZ !== 0);
+      // Turning (LEFT/RIGHT rotate the knight in place or while walking)
+      if (keys.left) knight.rotation.y -= turnSpeed;
+      if (keys.right) knight.rotation.y += turnSpeed;
 
-      if (isMoving) {
-        const length = Math.sqrt(inputX * inputX + inputZ * inputZ);
-        inputX /= length;
-        inputZ /= length;
-      }
+      // Walking (UP = forward in knight's facing direction, DOWN = backward)
+      let walkAmount = 0;
+      if (keys.up) walkAmount = 1;        // Forward
+      if (keys.down) walkAmount = -0.5;   // Backward (slower, like real life)
 
-      // Movement is camera-relative — but uses LAZY cameraAngle (not knight rotation!)
+      const isMoving = (walkAmount !== 0);
+
+      // Calculate forward direction based on knight's facing
       let moveX = 0, moveZ = 0;
       if (isMoving) {
-        const fwdX = -Math.sin(cameraAngle);
-        const fwdZ = -Math.cos(cameraAngle);
-        const rightX = -Math.cos(cameraAngle);
-        const rightZ = Math.sin(cameraAngle);
-        moveX = fwdX * -inputZ + rightX * inputX;
-        moveZ = fwdZ * -inputZ + rightZ * inputX;
+        // Knight's forward direction
+        const forwardX = Math.sin(knight.rotation.y);
+        const forwardZ = Math.cos(knight.rotation.y);
+        moveX = forwardX * walkAmount;
+        moveZ = forwardZ * walkAmount;
       }
 
+      // Apply movement with collision checks
       const newX = knight.position.x + moveX * moveSpeed;
       const newZ = knight.position.z + moveZ * moveSpeed;
       if (!isPositionBlocked(newX, knight.position.z, knightRadius)) knight.position.x = newX;
       if (!isPositionBlocked(knight.position.x, newZ, knightRadius)) knight.position.z = newZ;
-
-      // Knight snaps to face movement direction (FAST - this is visual only)
-      if (isMoving) {
-        const targetRotation = Math.atan2(moveX, moveZ) + Math.PI;
-        let angleDiff = targetRotation - knight.rotation.y;
-        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-        knight.rotation.y += angleDiff * 0.25;
-      }
 
       // Sword swing + hit detection
       if (isSwinging) {
