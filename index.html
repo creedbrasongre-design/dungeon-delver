@@ -15,28 +15,27 @@
       transition: opacity 0.4s ease;
       z-index: 100;
     }
-    /* NEW: the hearts display sits on top of the 3D canvas as plain HTML */
     #hearts {
       position: fixed;
       top: 12px; left: 14px;
       font-size: 30px;
       letter-spacing: 3px;
       z-index: 50;
-      user-select: none;        /* don't let the player accidentally highlight the hearts */
+      user-select: none;
     }
   </style>
 </head>
 <body>
 
   <div id="fadeOverlay"></div>
-  <div id="hearts"></div> <!-- NEW: filled in by updateHearts() below -->
+  <div id="hearts"></div>
 
   <!-- Load the Three.js library -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 
   <script>
     // =====================================================
-    // DUNGEON DELVER - Phase 5: Enemy AI + Health!
+    // DUNGEON DELVER - Phase 6: Enemy Types!
     // =====================================================
 
     const scene = new THREE.Scene();
@@ -156,27 +155,58 @@
     sword.rotation.y = -0.3;
     knight.add(sword);
 
+    // --- ENEMY TYPES ---  (NEW)
+    // One table describes EVERY kind of monster. Want a new enemy later?
+    // Add one line here -- no new spawn function needed. (This is "data-driven design".)
+    //   speed  : how fast it chases (the knight walks at 0.165 for comparison)
+    //   damage : hearts lost when it touches you
+    //   shape  : 'slime' = round blob, 'ogre' = big block
+    const ENEMY_TYPES = {
+      greenSlime: { color: 0x44dd44, health: 5,  speed: 0.05625, radius: 0.6,  damage: 1, shape: 'slime' }, // baseline
+      redSlime:   { color: 0xff5533, health: 3,  speed: 0.09,    radius: 0.55, damage: 1, shape: 'slime' }, // fire: fast + fragile
+      blueSlime:  { color: 0x55ccff, health: 8,  speed: 0.035,   radius: 0.65, damage: 1, shape: 'slime' }, // ice: slow + tanky
+      ogre:       { color: 0x998877, health: 15, speed: 0.045,   radius: 0.9,  damage: 2, shape: 'ogre'  }, // big bruiser, hits hard
+    };
+
     // --- ENEMIES ---
     const enemies = [];
-    function createSlime(x, z) {
-      const slime = new THREE.Mesh(
-        new THREE.SphereGeometry(0.6, 12, 8),
-        new THREE.MeshStandardMaterial({ color: 0x44dd44, roughness: 0.4 })
+    function createEnemy(typeName, x, z) {
+      const type = ENEMY_TYPES[typeName];
+
+      // Build the body. Slimes are spheres; ogres are tall blocks.
+      let geometry, baseY;
+      if (type.shape === 'ogre') {
+        geometry = new THREE.BoxGeometry(1.6, 2.4, 1.6);
+        baseY = 1.2; // half the height, so its feet sit on the floor
+      } else { // 'slime'
+        geometry = new THREE.SphereGeometry(type.radius, 12, 8);
+        baseY = type.radius;
+      }
+
+      const enemy = new THREE.Mesh(
+        geometry,
+        new THREE.MeshStandardMaterial({ color: type.color, roughness: 0.4 })
       );
-      slime.position.set(x, 0.6, z);
-      slime.userData = {
-        health: 5, isAlive: true, isDying: false, deathTimer: 0,
-        hitFlashTimer: 0, normalColor: 0x44dd44,
-        knockbackX: 0, knockbackZ: 0, knockbackTimer: 0, radius: 0.6
+      enemy.position.set(x, baseY, z);
+
+      // Each enemy carries its OWN stats now (pulled from the table above).
+      enemy.userData = {
+        type: typeName,
+        health: type.health, isAlive: true, isDying: false, deathTimer: 0,
+        hitFlashTimer: 0, normalColor: type.color,
+        knockbackX: 0, knockbackZ: 0, knockbackTimer: 0,
+        radius: type.radius, speed: type.speed, damage: type.damage, baseY: baseY
       };
-      scene.add(slime);
-      enemies.push(slime);
-      return slime;
+      scene.add(enemy);
+      enemies.push(enemy);
+      return enemy;
     }
 
-    createSlime(-10, -10);
-    createSlime(10, 10);
-    createSlime(-10, 10);
+    // Spawn a mix in the four corners so you can meet them all
+    createEnemy('greenSlime', -10, -10);
+    createEnemy('redSlime',    10,  10);
+    createEnemy('blueSlime',  -10,  10);
+    createEnemy('ogre',        10, -10);
 
     function isPositionBlocked(x, z, radius) {
       for (let i = 0; i < walls.length; i++) {
@@ -211,7 +241,7 @@
 
     function respawnKnight() {
       knightState = 'respawning';
-      knight.visible = true;          // NEW: in case we died mid-blink while invincible
+      knight.visible = true;          // in case we died mid-blink while invincible
       fadeOverlay.style.opacity = '1';
 
       setTimeout(() => {
@@ -226,7 +256,7 @@
         knight.scale.y = 1;
         knight.scale.z = 1;
 
-        // NEW: heal back to full and clear any leftover invincibility
+        // heal back to full and clear any leftover invincibility
         knight.visible = true;
         knightHealth = maxHearts;
         invincibleTimer = 0;
@@ -242,7 +272,7 @@
       }, 400);
     }
 
-    // --- KNIGHT HEALTH ---  (NEW)
+    // --- KNIGHT HEALTH ---
     const maxHearts = 5;
     let knightHealth = maxHearts;
     let invincibleTimer = 0;            // seconds of "can't be hurt" remaining (i-frames)
@@ -250,7 +280,6 @@
     let blinkTimer = 0;                 // used to flash the knight while invincible
     const heartsUI = document.getElementById('hearts');
 
-    // Rebuild the hearts row: full hearts for current HP, empty hearts for the rest
     function updateHearts() {
       let display = '';
       for (let i = 0; i < maxHearts; i++) {
@@ -298,10 +327,7 @@
     window.addEventListener('keydown', (event) => setKey(event, true));
     window.addEventListener('keyup', (event) => setKey(event, false));
 
-    const moveSpeed = 0.20;
-
-    // --- SLIME AI ---  (NEW)
-    const slimeSpeed = 0.05; // slower than the knight (0.15) so the game stays fair/winnable
+    const moveSpeed = 0.165;
 
     // --- CAMERA ---
     const cameraDistance = 6;
@@ -331,7 +357,7 @@
             enemy.scale.y = flatten * 0.5;
             enemy.scale.x = spread * shrink;
             enemy.scale.z = spread * shrink;
-            enemy.position.y = 0.6 * flatten;
+            enemy.position.y = enemy.userData.baseY * flatten; // melt down to its own floor height
           }
           continue;
         }
@@ -355,21 +381,18 @@
           enemy.userData.knockbackX *= 0.85;
           enemy.userData.knockbackZ *= 0.85;
         } else if (knightState === 'alive') {
-          // --- CHASE AI (NEW) ---
-          // Step toward the knight a little bit every frame.
+          // --- CHASE AI ---  (now uses each enemy's OWN speed)
           const dx = knight.position.x - enemy.position.x;
           const dz = knight.position.z - enemy.position.z;
           const dist = Math.sqrt(dx * dx + dz * dz);
 
           if (dist > 0.5) { // stop nudging once we're basically on top of the knight
-            // Divide by dist to get a "unit" direction (length 1), then scale by speed.
-            // WHY: without this, far-away slimes would move fast and close ones slow.
-            const stepX = (dx / dist) * slimeSpeed;
-            const stepZ = (dz / dist) * slimeSpeed;
+            // Divide by dist to get a length-1 direction, then scale by THIS enemy's speed.
+            const stepX = (dx / dist) * enemy.userData.speed;
+            const stepZ = (dz / dist) * enemy.userData.speed;
             const r = enemy.userData.radius;
 
-            // Move on X and Z separately so slimes slide along walls instead of
-            // sticking to them (same trick the knight uses). Also refuse to walk into pits.
+            // Move X and Z separately so enemies slide along walls. Don't walk into pits.
             if (!isPositionBlocked(enemy.position.x + stepX, enemy.position.z, r) &&
                 !isOverPit(enemy.position.x + stepX, enemy.position.z)) {
               enemy.position.x += stepX;
@@ -381,12 +404,10 @@
           }
         }
 
-        // --- CONTACT DAMAGE (NEW) ---
-        // If this slime is touching the knight, try to hurt him.
-        // takeDamage() itself checks i-frames + state, so it's safe to call every frame.
+        // --- CONTACT DAMAGE ---  (now uses each enemy's OWN damage)
         const touchDist = knight.position.distanceTo(enemy.position);
         if (touchDist < knightRadius + enemy.userData.radius) {
-          takeDamage(1);
+          takeDamage(enemy.userData.damage);
         }
       }
 
@@ -406,11 +427,8 @@
         }
       } else if (knightState === 'alive') {
 
-        // --- INVINCIBILITY FRAMES (NEW) ---
-        // After a hit, count down the safe window and blink the knight so the
-        // player can SEE that they're temporarily invincible.
-        // WHY i-frames exist: a "touch" lasts many frames at 60fps. Without this,
-        // one slime hug would drain all 5 hearts in a fraction of a second.
+        // --- INVINCIBILITY FRAMES ---
+        // After a hit, count down the safe window and blink the knight.
         if (invincibleTimer > 0) {
           invincibleTimer -= 1 / 60;
           blinkTimer += 1 / 60;
@@ -469,9 +487,9 @@
               if (distance < hitRange) {
                 enemy.userData.health -= swordDamage;
                 hasHitThisSwing = true;
-                console.log("HIT! Slime HP:", enemy.userData.health);
+                console.log("HIT! Enemy HP:", enemy.userData.health);
                 enemy.userData.hitFlashTimer = 0.15;
-                enemy.material.color.setHex(0xff4444);
+                enemy.material.color.setHex(0xffffff); // flash WHITE so it shows on any enemy color
                 const kx = enemy.position.x - knight.position.x;
                 const kz = enemy.position.z - knight.position.z;
                 const kl = Math.sqrt(kx * kx + kz * kz);
@@ -482,7 +500,7 @@
                   enemy.userData.isAlive = false;
                   enemy.userData.isDying = true;
                   enemy.userData.deathTimer = 0;
-                  console.log("Slime defeated!");
+                  console.log("Enemy defeated!");
                 }
                 break;
               }
