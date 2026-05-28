@@ -218,23 +218,22 @@
       // LEFT/RIGHT turn the knight, UP/DOWN walk forward/backward
       const turnSpeed = 0.05;
 
-      // Turning (LEFT/RIGHT rotate the knight in place or while walking)
-      if (keys.left) knight.rotation.y -= turnSpeed;
-      if (keys.right) knight.rotation.y += turnSpeed;
+      // Turning (FLIPPED so LEFT = counter-clockwise, RIGHT = clockwise)
+      if (keys.left) knight.rotation.y += turnSpeed;
+      if (keys.right) knight.rotation.y -= turnSpeed;
 
-      // Walking (UP = forward in knight's facing direction, DOWN = backward)
+      // Walking (UP = forward, DOWN = backward at half speed)
       let walkAmount = 0;
-      if (keys.up) walkAmount = 1;        // Forward
-      if (keys.down) walkAmount = -0.5;   // Backward (slower, like real life)
+      if (keys.up) walkAmount = 1;
+      if (keys.down) walkAmount = -0.5;
 
       const isMoving = (walkAmount !== 0);
 
-      // Calculate forward direction based on knight's facing
+      // Calculate forward direction (FLIPPED so UP actually goes forward)
       let moveX = 0, moveZ = 0;
       if (isMoving) {
-        // Knight's forward direction
-        const forwardX = Math.sin(knight.rotation.y);
-        const forwardZ = Math.cos(knight.rotation.y);
+        const forwardX = -Math.sin(knight.rotation.y);
+        const forwardZ = -Math.cos(knight.rotation.y);
         moveX = forwardX * walkAmount;
         moveZ = forwardZ * walkAmount;
       }
