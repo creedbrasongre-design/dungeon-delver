@@ -201,15 +201,13 @@
 
     function respawnKnight() {
       knightState = 'respawning';
-      fadeOverlay.style.opacity = '1'; // Fade to black
+      fadeOverlay.style.opacity = '1';
 
       setTimeout(() => {
-        // Teleport back to spawn
         knight.position.set(spawnPoint.x, spawnPoint.y, spawnPoint.z);
         knight.rotation.y = 0;
         knight.scale.set(1, 1, 1);
 
-        // Fade back in
         fadeOverlay.style.opacity = '0';
         setTimeout(() => {
           knightState = 'alive';
