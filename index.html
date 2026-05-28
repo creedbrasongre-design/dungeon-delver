@@ -14,7 +14,7 @@
 
   <script>
     // =====================================================
-    // DUNGEON DELVER - Phase 4: Real Level Design
+    // DUNGEON DELVER - Phase 4: Real Level Design (Simple Camera)
     // =====================================================
 
     // --- SCENE SETUP ---
@@ -49,7 +49,7 @@
     scene.add(moonLight);
 
     // --- FLOOR ---
-    const roomSize = 30; // Bigger room to fit interior walls!
+    const roomSize = 30;
     const floorGeometry = new THREE.PlaneGeometry(roomSize, roomSize);
     const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x666666 });
     const floor = new THREE.Mesh(floorGeometry, floorMaterial);
@@ -57,17 +57,14 @@
     scene.add(floor);
 
     // --- WALL SYSTEM ---
-    // All walls are stored in an array for collision detection
     const walls = [];
     const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x554433 });
     const wallHeight = 3;
 
-    // Function to create a wall at any position with any size
     function createWall(x, z, width, depth) {
       const wallGeometry = new THREE.BoxGeometry(width, wallHeight, depth);
       const wall = new THREE.Mesh(wallGeometry, wallMaterial);
       wall.position.set(x, wallHeight / 2, z);
-      // Save collision info on the wall
       wall.userData = {
         minX: x - width / 2,
         maxX: x + width / 2,
@@ -79,20 +76,20 @@
       return wall;
     }
 
-    // OUTER WALLS (border of the room)
-    createWall(0, -roomSize / 2, roomSize, 0.5);  // North wall
-    createWall(0, roomSize / 2, roomSize, 0.5);   // South wall
-    createWall(-roomSize / 2, 0, 0.5, roomSize);  // West wall
-    createWall(roomSize / 2, 0, 0.5, roomSize);   // East wall
+    // Outer walls
+    createWall(0, -roomSize / 2, roomSize, 0.5);
+    createWall(0, roomSize / 2, roomSize, 0.5);
+    createWall(-roomSize / 2, 0, 0.5, roomSize);
+    createWall(roomSize / 2, 0, 0.5, roomSize);
 
-    // INTERIOR WALLS - creating corridors and rooms!
-    createWall(-5, -5, 8, 0.5);    // Upper-left wall (horizontal)
-    createWall(5, 5, 0.5, 8);      // Lower-right wall (vertical)
-    createWall(-8, 6, 0.5, 6);     // Lower-left wall (vertical)
-    createWall(8, -6, 6, 0.5);     // Upper-right wall (horizontal)
+    // Interior walls
+    createWall(-5, -5, 8, 0.5);
+    createWall(5, 5, 0.5, 8);
+    createWall(-8, 6, 0.5, 6);
+    createWall(8, -6, 6, 0.5);
 
     // --- THE KNIGHT ---
-    const knightRadius = 0.4; // Used for collision detection!
+    const knightRadius = 0.4;
     const knightGeometry = new THREE.CapsuleGeometry(knightRadius, 0.8, 4, 8);
     const knightMaterial = new THREE.MeshStandardMaterial({ color: 0x4488ff });
     const knight = new THREE.Mesh(knightGeometry, knightMaterial);
@@ -142,20 +139,18 @@
         knockbackX: 0,
         knockbackZ: 0,
         knockbackTimer: 0,
-        radius: 0.6                // Slime's size for collisions
+        radius: 0.6
       };
       scene.add(slime);
       enemies.push(slime);
       return slime;
     }
 
-    // Place slimes in different parts of the dungeon to explore!
     createSlime(-10, -10);
     createSlime(10, 10);
     createSlime(-10, 10);
 
-    // --- COLLISION DETECTION FUNCTION ---
-    // Checks if a position would overlap any wall, using any object radius
+    // --- COLLISION DETECTION ---
     function isPositionBlocked(x, z, radius) {
       for (let i = 0; i < walls.length; i++) {
         const w = walls[i].userData;
@@ -163,10 +158,10 @@
             x - radius < w.maxX &&
             z + radius > w.minZ &&
             z - radius < w.maxZ) {
-          return true; // Blocked!
+          return true;
         }
       }
-      return false; // Free to move
+      return false;
     }
 
     // --- SWORD SWING STATE ---
@@ -186,21 +181,8 @@
       hasHitThisSwing = false;
     }
 
-    // --- KEYBOARD INPUT TRACKING ---
-    const keys = {
-      up: false, down: false, left: false, right: false,
-      cameraLeft: false, cameraRight: false  // Q and E for camera rotation
-    };
-
-    // --- CAMERA ROTATION STATE ---
-    let cameraAngle = 0;
-    const cameraRotateSpeed = 0.04;
-
-    // --- MOVEMENT DIRECTION TRACKING ---
-    // Stores the knight's "current movement heading" in world coords
-    let moveHeadingX = 0;
-    let moveHeadingZ = -1; // Default: face away from camera
-    const headingSmoothness = 0.12; // How fast knight's heading rotates with camera
+    // --- KEYBOARD INPUT ---
+    const keys = { up: false, down: false, left: false, right: false };
 
     function setKey(event, isPressed) {
       const key = event.key;
@@ -208,8 +190,6 @@
       if (key === 'ArrowDown' || key === 's' || key === 'S') keys.down = isPressed;
       if (key === 'ArrowLeft' || key === 'a' || key === 'A') keys.left = isPressed;
       if (key === 'ArrowRight' || key === 'd' || key === 'D') keys.right = isPressed;
-      if (key === 'q' || key === 'Q') keys.cameraLeft = isPressed;
-      if (key === 'e' || key === 'E') keys.cameraRight = isPressed;
       if (key === ' ' && isPressed && !event.repeat) startSwing();
     }
 
@@ -223,10 +203,9 @@
     function animate() {
       requestAnimationFrame(animate);
 
-      // Tick down the cooldown timer
       if (cooldownTimer > 0) cooldownTimer -= 1 / 60;
 
-      // Update enemy effects (flash + knockback + death melt)
+      // Update enemy effects
       for (let i = 0; i < enemies.length; i++) {
         const enemy = enemies[i];
 
@@ -262,80 +241,42 @@
         if (enemy.userData.knockbackTimer > 0) {
           enemy.userData.knockbackTimer -= 1 / 60;
 
-          // Calculate WHERE the slime wants to go
           const newSlimeX = enemy.position.x + enemy.userData.knockbackX;
           const newSlimeZ = enemy.position.z + enemy.userData.knockbackZ;
 
-          // Check X movement (slide along walls!)
           if (!isPositionBlocked(newSlimeX, enemy.position.z, enemy.userData.radius)) {
             enemy.position.x = newSlimeX;
           } else {
-            enemy.userData.knockbackX = 0; // Stop X motion if blocked
+            enemy.userData.knockbackX = 0;
           }
 
-          // Check Z movement
           if (!isPositionBlocked(enemy.position.x, newSlimeZ, enemy.userData.radius)) {
             enemy.position.z = newSlimeZ;
           } else {
-            enemy.userData.knockbackZ = 0; // Stop Z motion if blocked
+            enemy.userData.knockbackZ = 0;
           }
 
-          // Slow down the knockback over time (deceleration)
           enemy.userData.knockbackX *= 0.85;
           enemy.userData.knockbackZ *= 0.85;
         }
       }
 
-      // Player rotates camera with Q/E (do this BEFORE movement so directions are accurate)
-      if (keys.cameraLeft) cameraAngle += cameraRotateSpeed;
-      if (keys.cameraRight) cameraAngle -= cameraRotateSpeed;
-
-      // Movement input (raw direction the player wants to go)
-      let inputX = 0;
-      let inputZ = 0;
-      if (keys.up) inputZ -= 1;
-      if (keys.down) inputZ += 1;
-      if (keys.left) inputX -= 1;
-      if (keys.right) inputX += 1;
-
-      const isMoving = (inputX !== 0 || inputZ !== 0);
-
-      // Normalize diagonal input
-      if (isMoving) {
-        const length = Math.sqrt(inputX * inputX + inputZ * inputZ);
-        inputX = inputX / length;
-        inputZ = inputZ / length;
-      }
-
-      // BOTW-STYLE MOVEMENT
-      // Calculate the target direction from camera angle + input
+      // --- MOVEMENT (simple world-relative) ---
       let moveX = 0;
       let moveZ = 0;
+      if (keys.up) moveZ -= 1;
+      if (keys.down) moveZ += 1;
+      if (keys.left) moveX -= 1;
+      if (keys.right) moveX += 1;
+
+      const isMoving = (moveX !== 0 || moveZ !== 0);
+
       if (isMoving) {
-        // Camera's forward and right vectors
-        const camForwardX = -Math.sin(cameraAngle);
-        const camForwardZ = -Math.cos(cameraAngle);
-        const camRightX = Math.cos(cameraAngle);
-        const camRightZ = -Math.sin(cameraAngle);
-
-        // Where the player WANTS to go (camera-relative)
-        const targetHeadingX = camForwardX * -inputZ + camRightX * inputX;
-        const targetHeadingZ = camForwardZ * -inputZ + camRightZ * inputX;
-
-        // SMOOTHLY rotate the moveHeading toward the target (THIS IS THE BOTW MAGIC!)
-        // When camera changes while moving, heading smoothly follows
-        moveHeadingX += (targetHeadingX - moveHeadingX) * headingSmoothness;
-        moveHeadingZ += (targetHeadingZ - moveHeadingZ) * headingSmoothness;
-
-        // Normalize the heading so speed stays constant
-        const headingLength = Math.sqrt(moveHeadingX * moveHeadingX + moveHeadingZ * moveHeadingZ);
-        if (headingLength > 0.01) {
-          moveX = moveHeadingX / headingLength;
-          moveZ = moveHeadingZ / headingLength;
-        }
+        const length = Math.sqrt(moveX * moveX + moveZ * moveZ);
+        moveX = moveX / length;
+        moveZ = moveZ / length;
       }
 
-      // Apply movement WITH COLLISION CHECKS
       const newX = knight.position.x + moveX * moveSpeed;
       const newZ = knight.position.z + moveZ * moveSpeed;
 
@@ -346,7 +287,7 @@
         knight.position.z = newZ;
       }
 
-      // Smooth rotation
+      // Smooth knight rotation toward movement direction
       if (isMoving) {
         const targetRotation = Math.atan2(moveX, moveZ) + Math.PI;
         let angleDiff = targetRotation - knight.rotation.y;
@@ -355,7 +296,7 @@
         knight.rotation.y += angleDiff * 0.2;
       }
 
-      // Sword swing animation + hit detection
+      // Sword swing + hit detection
       if (isSwinging) {
         swingTimer += 1 / 60 / swingDuration;
 
@@ -403,21 +344,19 @@
         }
       }
 
-      // Camera control - position based on cameraAngle (set above with Q/E)
+      // --- CAMERA: simple chase camera behind the knight ---
       const cameraDistance = 6;
       const cameraHeight = 3.5;
-      const cameraSmoothness = 0.1;
+      const cameraSmoothness = 0.08;
 
-      // Calculate target camera position using cameraAngle
-      const targetCameraX = knight.position.x + Math.sin(cameraAngle) * cameraDistance;
-      const targetCameraZ = knight.position.z + Math.cos(cameraAngle) * cameraDistance;
+      const knightAngle = knight.rotation.y;
+      const targetCameraX = knight.position.x + Math.sin(knightAngle) * cameraDistance;
+      const targetCameraZ = knight.position.z + Math.cos(knightAngle) * cameraDistance;
 
-      // Smoothly drift toward target position
       camera.position.x += (targetCameraX - camera.position.x) * cameraSmoothness;
       camera.position.y = knight.position.y + cameraHeight;
       camera.position.z += (targetCameraZ - camera.position.z) * cameraSmoothness;
 
-      // Look at the knight
       camera.lookAt(knight.position.x, 1.6, knight.position.z);
 
       renderer.render(scene, camera);
