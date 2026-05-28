@@ -187,7 +187,15 @@
     }
 
     // --- KEYBOARD INPUT TRACKING ---
-    const keys = { up: false, down: false, left: false, right: false };
+    const keys = {
+      up: false, down: false, left: false, right: false,
+      cameraLeft: false, cameraRight: false  // Q and E for camera rotation
+    };
+
+    // --- CAMERA ROTATION STATE ---
+    // Tracks the camera's angle around the knight (separate from knight's facing!)
+    let cameraAngle = 0;
+    const cameraRotateSpeed = 0.04; // How fast Q/E rotate the camera
 
     function setKey(event, isPressed) {
       const key = event.key;
@@ -195,6 +203,8 @@
       if (key === 'ArrowDown' || key === 's' || key === 'S') keys.down = isPressed;
       if (key === 'ArrowLeft' || key === 'a' || key === 'A') keys.left = isPressed;
       if (key === 'ArrowRight' || key === 'd' || key === 'D') keys.right = isPressed;
+      if (key === 'q' || key === 'Q') keys.cameraLeft = isPressed;
+      if (key === 'e' || key === 'E') keys.cameraRight = isPressed;
       if (key === ' ' && isPressed && !event.repeat) startSwing();
     }
 
@@ -356,22 +366,25 @@
         }
       }
 
-      // Camera follow - smooth orbital chase (OOT-style!)
-      const cameraDistance = 6;        // How far behind the knight
-      const cameraHeight = 3.5;        // How high above the knight
-      const cameraSmoothness = 0.08;   // How smoothly camera catches up
+      // Camera control - player rotates with Q/E (BOTW/OOT style)
+      const cameraDistance = 6;
+      const cameraHeight = 3.5;
+      const cameraSmoothness = 0.1;
 
-      // Calculate target position BEHIND the knight using his rotation
-      const knightAngle = knight.rotation.y;
-      const targetCameraX = knight.position.x + Math.sin(knightAngle) * cameraDistance;
-      const targetCameraZ = knight.position.z + Math.cos(knightAngle) * cameraDistance;
+      // Player rotates camera with Q/E
+      if (keys.cameraLeft) cameraAngle -= cameraRotateSpeed;
+      if (keys.cameraRight) cameraAngle += cameraRotateSpeed;
 
-      // Smoothly drift toward the target position
+      // Calculate target camera position using cameraAngle (NOT knight's rotation)
+      const targetCameraX = knight.position.x + Math.sin(cameraAngle) * cameraDistance;
+      const targetCameraZ = knight.position.z + Math.cos(cameraAngle) * cameraDistance;
+
+      // Smoothly drift toward target position
       camera.position.x += (targetCameraX - camera.position.x) * cameraSmoothness;
       camera.position.y = knight.position.y + cameraHeight;
       camera.position.z += (targetCameraZ - camera.position.z) * cameraSmoothness;
 
-      // Look at the knight's head
+      // Look at the knight
       camera.lookAt(knight.position.x, 1.6, knight.position.z);
 
       renderer.render(scene, camera);
