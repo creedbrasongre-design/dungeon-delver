@@ -15,18 +15,28 @@
       transition: opacity 0.4s ease;
       z-index: 100;
     }
+    /* NEW: the hearts display sits on top of the 3D canvas as plain HTML */
+    #hearts {
+      position: fixed;
+      top: 12px; left: 14px;
+      font-size: 30px;
+      letter-spacing: 3px;
+      z-index: 50;
+      user-select: none;        /* don't let the player accidentally highlight the hearts */
+    }
   </style>
 </head>
 <body>
 
   <div id="fadeOverlay"></div>
+  <div id="hearts"></div> <!-- NEW: filled in by updateHearts() below -->
 
   <!-- Load the Three.js library -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 
   <script>
     // =====================================================
-    // DUNGEON DELVER - Phase 4: Pits & Respawn!
+    // DUNGEON DELVER - Phase 5: Enemy AI + Health!
     // =====================================================
 
     const scene = new THREE.Scene();
@@ -201,6 +211,7 @@
 
     function respawnKnight() {
       knightState = 'respawning';
+      knight.visible = true;          // NEW: in case we died mid-blink while invincible
       fadeOverlay.style.opacity = '1';
 
       setTimeout(() => {
@@ -214,6 +225,13 @@
         knight.scale.x = 1;
         knight.scale.y = 1;
         knight.scale.z = 1;
+
+        // NEW: heal back to full and clear any leftover invincibility
+        knight.visible = true;
+        knightHealth = maxHearts;
+        invincibleTimer = 0;
+        updateHearts();
+
         console.log("Larry has been resurrected! Position:", knight.position, "Rotation:", knight.rotation);
 
         fadeOverlay.style.opacity = '0';
@@ -222,6 +240,37 @@
           console.log("Respawned and ready to fight green Easter eggs!");
         }, 400);
       }, 400);
+    }
+
+    // --- KNIGHT HEALTH ---  (NEW)
+    const maxHearts = 5;
+    let knightHealth = maxHearts;
+    let invincibleTimer = 0;            // seconds of "can't be hurt" remaining (i-frames)
+    const invincibleDuration = 1.0;     // how long you're safe after getting hit
+    let blinkTimer = 0;                 // used to flash the knight while invincible
+    const heartsUI = document.getElementById('hearts');
+
+    // Rebuild the hearts row: full hearts for current HP, empty hearts for the rest
+    function updateHearts() {
+      let display = '';
+      for (let i = 0; i < maxHearts; i++) {
+        display += (i < knightHealth) ? '\u2764\uFE0F' : '\uD83E\uDD0D'; // red heart vs white heart
+      }
+      heartsUI.textContent = display;
+    }
+    updateHearts(); // draw them once at the start
+
+    function takeDamage(amount) {
+      if (knightState !== 'alive') return;  // can't be hurt while falling/respawning
+      if (invincibleTimer > 0) return;      // currently in i-frames, ignore the hit
+      knightHealth -= amount;
+      invincibleTimer = invincibleDuration; // start the "safe" window
+      updateHearts();
+      console.log("OUCH! Larry took damage. Hearts left:", knightHealth);
+      if (knightHealth <= 0) {
+        console.log("Larry has fallen... respawning!");
+        respawnKnight();                    // fade out, reset, and heal to full
+      }
     }
 
     // --- COMBAT STATE ---
@@ -250,6 +299,9 @@
     window.addEventListener('keyup', (event) => setKey(event, false));
 
     const moveSpeed = 0.15;
+
+    // --- SLIME AI ---  (NEW)
+    const slimeSpeed = 0.045; // slower than the knight (0.15) so the game stays fair/winnable
 
     // --- CAMERA ---
     const cameraDistance = 6;
@@ -290,7 +342,9 @@
             enemy.material.color.setHex(enemy.userData.normalColor);
           }
         }
+
         if (enemy.userData.knockbackTimer > 0) {
+          // Getting knocked back from a sword hit takes priority over chasing
           enemy.userData.knockbackTimer -= 1 / 60;
           const nx = enemy.position.x + enemy.userData.knockbackX;
           const nz = enemy.position.z + enemy.userData.knockbackZ;
@@ -300,6 +354,39 @@
           else enemy.userData.knockbackZ = 0;
           enemy.userData.knockbackX *= 0.85;
           enemy.userData.knockbackZ *= 0.85;
+        } else if (knightState === 'alive') {
+          // --- CHASE AI (NEW) ---
+          // Step toward the knight a little bit every frame.
+          const dx = knight.position.x - enemy.position.x;
+          const dz = knight.position.z - enemy.position.z;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+
+          if (dist > 0.5) { // stop nudging once we're basically on top of the knight
+            // Divide by dist to get a "unit" direction (length 1), then scale by speed.
+            // WHY: without this, far-away slimes would move fast and close ones slow.
+            const stepX = (dx / dist) * slimeSpeed;
+            const stepZ = (dz / dist) * slimeSpeed;
+            const r = enemy.userData.radius;
+
+            // Move on X and Z separately so slimes slide along walls instead of
+            // sticking to them (same trick the knight uses). Also refuse to walk into pits.
+            if (!isPositionBlocked(enemy.position.x + stepX, enemy.position.z, r) &&
+                !isOverPit(enemy.position.x + stepX, enemy.position.z)) {
+              enemy.position.x += stepX;
+            }
+            if (!isPositionBlocked(enemy.position.x, enemy.position.z + stepZ, r) &&
+                !isOverPit(enemy.position.x, enemy.position.z + stepZ)) {
+              enemy.position.z += stepZ;
+            }
+          }
+        }
+
+        // --- CONTACT DAMAGE (NEW) ---
+        // If this slime is touching the knight, try to hurt him.
+        // takeDamage() itself checks i-frames + state, so it's safe to call every frame.
+        const touchDist = knight.position.distanceTo(enemy.position);
+        if (touchDist < knightRadius + enemy.userData.radius) {
+          takeDamage(1);
         }
       }
 
@@ -318,6 +405,22 @@
           knight.rotation.z = progress * 0.5;             // Tilt as falling
         }
       } else if (knightState === 'alive') {
+
+        // --- INVINCIBILITY FRAMES (NEW) ---
+        // After a hit, count down the safe window and blink the knight so the
+        // player can SEE that they're temporarily invincible.
+        // WHY i-frames exist: a "touch" lasts many frames at 60fps. Without this,
+        // one slime hug would drain all 5 hearts in a fraction of a second.
+        if (invincibleTimer > 0) {
+          invincibleTimer -= 1 / 60;
+          blinkTimer += 1 / 60;
+          if (blinkTimer > 0.1) {              // flip visible on/off every 0.1s = fast flash
+            knight.visible = !knight.visible;
+            blinkTimer = 0;
+          }
+          if (invincibleTimer <= 0) knight.visible = true; // always end visible
+        }
+
         // --- TANK CONTROLS ---
         const turnSpeed = 0.05;
         if (keys.left) knight.rotation.y += turnSpeed;
