@@ -141,7 +141,8 @@
         normalColor: 0x44dd44,
         knockbackX: 0,
         knockbackZ: 0,
-        knockbackTimer: 0
+        knockbackTimer: 0,
+        radius: 0.6                // Slime's size for collisions
       };
       scene.add(slime);
       enemies.push(slime);
@@ -154,15 +155,14 @@
     createSlime(-10, 10);
 
     // --- COLLISION DETECTION FUNCTION ---
-    // Checks if a position would overlap any wall (with player radius)
-    function isPositionBlocked(x, z) {
+    // Checks if a position would overlap any wall, using any object radius
+    function isPositionBlocked(x, z, radius) {
       for (let i = 0; i < walls.length; i++) {
         const w = walls[i].userData;
-        // Check if the knight's circle overlaps the wall's rectangle
-        if (x + knightRadius > w.minX &&
-            x - knightRadius < w.maxX &&
-            z + knightRadius > w.minZ &&
-            z - knightRadius < w.maxZ) {
+        if (x + radius > w.minX &&
+            x - radius < w.maxX &&
+            z + radius > w.minZ &&
+            z - radius < w.maxZ) {
           return true; // Blocked!
         }
       }
@@ -246,8 +246,26 @@
 
         if (enemy.userData.knockbackTimer > 0) {
           enemy.userData.knockbackTimer -= 1 / 60;
-          enemy.position.x += enemy.userData.knockbackX;
-          enemy.position.z += enemy.userData.knockbackZ;
+
+          // Calculate WHERE the slime wants to go
+          const newSlimeX = enemy.position.x + enemy.userData.knockbackX;
+          const newSlimeZ = enemy.position.z + enemy.userData.knockbackZ;
+
+          // Check X movement (slide along walls!)
+          if (!isPositionBlocked(newSlimeX, enemy.position.z, enemy.userData.radius)) {
+            enemy.position.x = newSlimeX;
+          } else {
+            enemy.userData.knockbackX = 0; // Stop X motion if blocked
+          }
+
+          // Check Z movement
+          if (!isPositionBlocked(enemy.position.x, newSlimeZ, enemy.userData.radius)) {
+            enemy.position.z = newSlimeZ;
+          } else {
+            enemy.userData.knockbackZ = 0; // Stop Z motion if blocked
+          }
+
+          // Slow down the knockback over time (deceleration)
           enemy.userData.knockbackX *= 0.85;
           enemy.userData.knockbackZ *= 0.85;
         }
@@ -274,10 +292,10 @@
       const newX = knight.position.x + moveX * moveSpeed;
       const newZ = knight.position.z + moveZ * moveSpeed;
 
-      if (!isPositionBlocked(newX, knight.position.z)) {
+      if (!isPositionBlocked(newX, knight.position.z, knightRadius)) {
         knight.position.x = newX;
       }
-      if (!isPositionBlocked(knight.position.x, newZ)) {
+      if (!isPositionBlocked(knight.position.x, newZ, knightRadius)) {
         knight.position.z = newZ;
       }
 
