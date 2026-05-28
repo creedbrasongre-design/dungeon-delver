@@ -356,18 +356,23 @@
         }
       }
 
-      // Camera follow - smooth lerp (OOT-style!)
-      const cameraSmoothness = 0.08;
-      const targetCameraX = knight.position.x;
-      const targetCameraZ = knight.position.z + 6;
+      // Camera follow - smooth orbital chase (OOT-style!)
+      const cameraDistance = 6;        // How far behind the knight
+      const cameraHeight = 3.5;        // How high above the knight
+      const cameraSmoothness = 0.08;   // How smoothly camera catches up
 
+      // Calculate target position BEHIND the knight using his rotation
+      const knightAngle = knight.rotation.y;
+      const targetCameraX = knight.position.x + Math.sin(knightAngle) * cameraDistance;
+      const targetCameraZ = knight.position.z + Math.cos(knightAngle) * cameraDistance;
+
+      // Smoothly drift toward the target position
       camera.position.x += (targetCameraX - camera.position.x) * cameraSmoothness;
+      camera.position.y = knight.position.y + cameraHeight;
       camera.position.z += (targetCameraZ - camera.position.z) * cameraSmoothness;
 
-      // Also smoothly drift the look-at point
-      const lookAtX = knight.position.x;
-      const lookAtZ = knight.position.z;
-      camera.lookAt(lookAtX, 1.6, lookAtZ);
+      // Look at the knight's head
+      camera.lookAt(knight.position.x, 1.6, knight.position.z);
 
       renderer.render(scene, camera);
     }
