@@ -23,19 +23,47 @@
       z-index: 50;
       user-select: none;
     }
+    /* NEW: shows how many keys you're carrying */
+    #keys {
+      position: fixed;
+      top: 54px; left: 16px;
+      font-size: 22px;
+      color: #ffdd55;
+      font-family: sans-serif;
+      z-index: 50;
+      user-select: none;
+    }
+    /* NEW: pop-up text for "Locked!", "Picked up a key!", etc. */
+    #message {
+      position: fixed;
+      bottom: 40px; left: 50%;
+      transform: translateX(-50%);
+      font-family: sans-serif;
+      font-size: 22px;
+      color: #fff;
+      background: rgba(0,0,0,0.6);
+      padding: 10px 18px;
+      border-radius: 10px;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      pointer-events: none;
+      z-index: 60;
+    }
   </style>
 </head>
 <body>
 
   <div id="fadeOverlay"></div>
   <div id="hearts"></div>
+  <div id="keys"></div>
+  <div id="message"></div>
 
   <!-- Load the Three.js library -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 
   <script>
     // =====================================================
-    // DUNGEON DELVER - Phase 6: Enemy Types!
+    // DUNGEON DELVER - Phase 7: Rooms, Doors & Keys!
     // =====================================================
 
     const scene = new THREE.Scene();
@@ -49,7 +77,7 @@
 
     const fadeOverlay = document.getElementById('fadeOverlay');
 
-    // --- LIGHTING ---
+    // --- LIGHTING --- (stays the same for every room)
     scene.add(new THREE.AmbientLight(0xffffff, 0.6));
     const torchLight = new THREE.PointLight(0xffaa55, 100, 50);
     torchLight.position.set(0, 7, 0);
@@ -58,7 +86,7 @@
     moonLight.position.set(5, 10, 5);
     scene.add(moonLight);
 
-    // --- FLOOR ---
+    // --- FLOOR --- (every room is the same 30x30 size, so one floor is fine)
     const roomSize = 30;
     const floor = new THREE.Mesh(
       new THREE.PlaneGeometry(roomSize, roomSize),
@@ -84,27 +112,14 @@
       return wall;
     }
 
-    createWall(0, -roomSize / 2, roomSize, 0.5);
-    createWall(0, roomSize / 2, roomSize, 0.5);
-    createWall(-roomSize / 2, 0, 0.5, roomSize);
-    createWall(roomSize / 2, 0, 0.5, roomSize);
-    createWall(-5, -5, 8, 0.5);
-    createWall(5, 5, 0.5, 8);
-    createWall(-8, 6, 0.5, 6);
-    createWall(8, -6, 6, 0.5);
-
-    // --- PITS! ---
-    // Each pit is a dark square on the floor. Fall in = respawn!
+    // --- PITS ---
     const pits = [];
-
     function createPit(x, z, size) {
-      // Make the pit look dark/scary
       const pitGeometry = new THREE.PlaneGeometry(size, size);
       const pitMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
       const pit = new THREE.Mesh(pitGeometry, pitMaterial);
       pit.rotation.x = -Math.PI / 2;
       pit.position.set(x, 0.01, z); // Slightly above floor to avoid z-fighting
-
       pit.userData = {
         minX: x - size / 2, maxX: x + size / 2,
         minZ: z - size / 2, maxZ: z + size / 2
@@ -114,12 +129,7 @@
       return pit;
     }
 
-    // Place some pits around the dungeon!
-    createPit(3, -3, 2);      // Near spawn (be careful!)
-    createPit(-3, 8, 3);      // Bigger pit
-    createPit(10, -2, 2.5);   // On the way to a slime
-
-    // --- KNIGHT ---
+    // --- KNIGHT --- (persists across rooms)
     const knightRadius = 0.4;
     const knight = new THREE.Mesh(
       new THREE.CapsuleGeometry(knightRadius, 0.8, 4, 8),
@@ -128,8 +138,7 @@
     knight.position.set(0, 0.8, 0);
     scene.add(knight);
 
-    // --- SPAWN POINT ---
-    // Where the knight respawns when he falls
+    // --- SPAWN POINT --- (updated each time you enter a room, so pit-falls respawn you there)
     const spawnPoint = { x: 0, z: 0, y: 0.8 };
 
     // --- SWORD ---
@@ -155,41 +164,32 @@
     sword.rotation.y = -0.3;
     knight.add(sword);
 
-    // --- ENEMY TYPES ---  (NEW)
-    // One table describes EVERY kind of monster. Want a new enemy later?
-    // Add one line here -- no new spawn function needed. (This is "data-driven design".)
-    //   speed  : how fast it chases (the knight walks at 0.165 for comparison)
-    //   damage : hearts lost when it touches you
-    //   shape  : 'slime' = round blob, 'ogre' = big block
+    // --- ENEMY TYPES ---
+    // One table describes EVERY kind of monster. Add a new enemy = add one line.
     const ENEMY_TYPES = {
-      greenSlime: { color: 0x44dd44, health: 5,  speed: 0.05625, radius: 0.6,  damage: 1, shape: 'slime' }, // baseline
-      redSlime:   { color: 0xff5533, health: 3,  speed: 0.09,    radius: 0.55, damage: 1, shape: 'slime' }, // fire: fast + fragile
-      blueSlime:  { color: 0x55ccff, health: 6,  speed: 0.035,   radius: 0.65, damage: 1, shape: 'slime' }, // ice: slow + tanky
-      ogre:       { color: 0x998877, health: 8, speed: 0.045,   radius: 0.9,  damage: 2, shape: 'ogre'  }, // big bruiser, hits hard
+      greenSlime: { color: 0x44dd44, health: 5, speed: 0.05625, radius: 0.6,  damage: 1, shape: 'slime' }, // baseline
+      redSlime:   { color: 0xff5533, health: 3, speed: 0.09,    radius: 0.55, damage: 1, shape: 'slime' }, // fire: fast + fragile
+      blueSlime:  { color: 0x55ccff, health: 6, speed: 0.035,   radius: 0.65, damage: 1, shape: 'slime' }, // ice: slow + tanky
+      ogre:       { color: 0x998877, health: 8, speed: 0.045,   radius: 0.9,  damage: 2, shape: 'ogre'  }, // big bruiser
     };
 
     // --- ENEMIES ---
     const enemies = [];
     function createEnemy(typeName, x, z) {
       const type = ENEMY_TYPES[typeName];
-
-      // Build the body. Slimes are spheres; ogres are tall blocks.
       let geometry, baseY;
       if (type.shape === 'ogre') {
         geometry = new THREE.BoxGeometry(1.6, 2.4, 1.6);
-        baseY = 1.2; // half the height, so its feet sit on the floor
+        baseY = 1.2;
       } else { // 'slime'
         geometry = new THREE.SphereGeometry(type.radius, 12, 8);
         baseY = type.radius;
       }
-
       const enemy = new THREE.Mesh(
         geometry,
         new THREE.MeshStandardMaterial({ color: type.color, roughness: 0.4 })
       );
       enemy.position.set(x, baseY, z);
-
-      // Each enemy carries its OWN stats now (pulled from the table above).
       enemy.userData = {
         type: typeName,
         health: type.health, isAlive: true, isDying: false, deathTimer: 0,
@@ -202,12 +202,6 @@
       return enemy;
     }
 
-    // Spawn a mix in the four corners so you can meet them all
-    createEnemy('greenSlime', -10, -10);
-    createEnemy('redSlime',    10,  10);
-    createEnemy('blueSlime',  -10,  10);
-    createEnemy('ogre',        10, -10);
-
     function isPositionBlocked(x, z, radius) {
       for (let i = 0; i < walls.length; i++) {
         const w = walls[i].userData;
@@ -217,8 +211,6 @@
       return false;
     }
 
-    // --- PIT DETECTION ---
-    // Returns true if a position is over any pit
     function isOverPit(x, z) {
       for (let i = 0; i < pits.length; i++) {
         const p = pits[i].userData;
@@ -227,13 +219,149 @@
       return false;
     }
 
+    // --- DOORS ---  (NEW)
+    // A door is a slab against a wall. Walk up to it to travel to another room.
+    const doors = [];
+    function createDoor(d) {
+      // d = { x, z, rot, to, arriveX, arriveZ, locked }
+      const color = d.locked ? 0xffcc33 : 0x7a4a1e; // gold = locked, brown wood = open
+      const door = new THREE.Mesh(
+        new THREE.BoxGeometry(2, 2.6, 0.4),
+        new THREE.MeshStandardMaterial({ color: color })
+      );
+      door.position.set(d.x, 1.3, d.z);
+      door.rotation.y = d.rot; // turn the slab to lie flat against its wall
+      door.userData = { to: d.to, arriveX: d.arriveX, arriveZ: d.arriveZ, locked: d.locked };
+      scene.add(door);
+      doors.push(door);
+      return door;
+    }
+
+    // --- KEYS --- (NEW) floating collectible rings
+    const keyItems = [];
+    function createKeyItem(x, z) {
+      const key = new THREE.Mesh(
+        new THREE.TorusGeometry(0.25, 0.09, 8, 16),
+        new THREE.MeshStandardMaterial({ color: 0xffdd33, metalness: 0.6, roughness: 0.3 })
+      );
+      key.position.set(x, 0.8, z);
+      scene.add(key);
+      keyItems.push(key);
+      return key;
+    }
+
+    // --- TREASURE --- (NEW) the reward inside a locked room
+    const treasures = [];
+    function createTreasure(x, z) {
+      const chest = new THREE.Mesh(
+        new THREE.BoxGeometry(0.8, 0.8, 0.8),
+        new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.7, roughness: 0.25 })
+      );
+      chest.position.set(x, 0.9, z);
+      scene.add(chest);
+      treasures.push(chest);
+      return chest;
+    }
+
+    // --- INVENTORY + UI ---  (NEW)
+    let playerKeys = 0;
+    const keysUI = document.getElementById('keys');
+    const messageUI = document.getElementById('message');
+    let messageTimer = 0;
+
+    function updateKeysUI() {
+      keysUI.textContent = (playerKeys > 0) ? ('\uD83D\uDD11 x ' + playerKeys) : '';
+    }
+    function showMessage(text, seconds) {
+      messageUI.textContent = text;
+      messageUI.style.opacity = '1';
+      messageTimer = seconds;
+    }
+
+    // --- ROOMS ---  (NEW) the whole dungeon described as data
+    // Each room lists its interior walls, pits, enemies, doors, keys, and treasure.
+    // (The 4 outer boundary walls are added automatically in loadRoom.)
+    // A door's arriveX/arriveZ = where YOU stand when you arrive in the room it leads to.
+    const ROOMS = {
+      start: {
+        walls:   [ [-5,-5,8,0.5], [5,5,0.5,8], [-8,6,0.5,6], [8,-6,6,0.5] ],
+        pits:    [ [3,-3,2], [-3,8,3] ],
+        enemies: [ ['greenSlime',-10,-10], ['redSlime',10,10] ],
+        doors:   [ { x:14, z:0, rot:Math.PI/2, to:'hall', arriveX:-10, arriveZ:0, locked:false } ],
+        keys:    [],
+        treasures: []
+      },
+      hall: {
+        walls:   [ [0,-4,12,0.5], [0,8,0.5,10] ],
+        pits:    [ [6,-8,2] ],
+        enemies: [ ['blueSlime',6,6], ['greenSlime',-6,-6] ],
+        doors:   [
+          { x:-14, z:0, rot:Math.PI/2, to:'start',    arriveX:10,  arriveZ:0, locked:false },
+          { x:14,  z:0, rot:Math.PI/2, to:'treasure', arriveX:-10, arriveZ:0, locked:true  }
+        ],
+        keys:    [ [10,8] ],
+        treasures: []
+      },
+      treasure: {
+        walls:   [],
+        pits:    [],
+        enemies: [ ['ogre',3,0] ],
+        doors:   [ { x:-14, z:0, rot:Math.PI/2, to:'hall', arriveX:10, arriveZ:0, locked:false } ],
+        keys:    [],
+        treasures: [ [11,0] ]
+      }
+    };
+
+    // --- ROOM LOADING ---  (NEW)
+    let currentRoomId = null;
+    let transitionCooldown = 0; // brief door-immunity right after arriving (stops bouncing)
+
+    function clearRoom() {
+      // Remove everything that belonged to the old room from the 3D scene...
+      for (const w of walls) scene.remove(w);
+      for (const p of pits) scene.remove(p);
+      for (const e of enemies) scene.remove(e);
+      for (const d of doors) scene.remove(d);
+      for (const k of keyItems) scene.remove(k);
+      for (const t of treasures) scene.remove(t);
+      // ...then empty the lists so the room loader starts fresh.
+      walls.length = 0; pits.length = 0; enemies.length = 0;
+      doors.length = 0; keyItems.length = 0; treasures.length = 0;
+    }
+
+    function loadRoom(roomId, arriveX, arriveZ) {
+      clearRoom();
+      const room = ROOMS[roomId];
+      currentRoomId = roomId;
+
+      // Every room gets the 4 outer boundary walls automatically
+      createWall(0, -roomSize / 2, roomSize, 0.5);
+      createWall(0,  roomSize / 2, roomSize, 0.5);
+      createWall(-roomSize / 2, 0, 0.5, roomSize);
+      createWall( roomSize / 2, 0, 0.5, roomSize);
+
+      // Build everything else from the room's data
+      for (const w of room.walls)     createWall(w[0], w[1], w[2], w[3]);
+      for (const p of room.pits)      createPit(p[0], p[1], p[2]);
+      for (const e of room.enemies)   createEnemy(e[0], e[1], e[2]);
+      for (const d of room.doors)     createDoor(d);
+      for (const k of room.keys)      createKeyItem(k[0], k[1]);
+      for (const t of room.treasures) createTreasure(t[0], t[1]);
+
+      // Drop the knight at the arrival spot, and make THAT the room's respawn point
+      knight.position.set(arriveX, spawnPoint.y, arriveZ);
+      spawnPoint.x = arriveX;
+      spawnPoint.z = arriveZ;
+      transitionCooldown = 0.5; // half a second before doors can trigger again
+    }
+
     // --- KNIGHT STATE MACHINE ---
     let knightState = 'alive'; // 'alive', 'falling', 'respawning'
     let fallTimer = 0;
-    const fallDuration = 1.0; // How long falling animation takes
+    const fallDuration = 1.0;
 
     function startFalling() {
-      if (knightState !== 'alive') return; // Already falling/respawning
+      if (knightState !== 'alive') return;
       knightState = 'falling';
       fallTimer = 0;
       console.log("AAAAHHHHH! Falling into pit!");
@@ -241,12 +369,11 @@
 
     function respawnKnight() {
       knightState = 'respawning';
-      knight.visible = true;          // in case we died mid-blink while invincible
+      knight.visible = true;
       fadeOverlay.style.opacity = '1';
 
       setTimeout(() => {
-        // NUCLEAR RESET - explicitly reset EVERY property
-        knight.position.x = spawnPoint.x;
+        knight.position.x = spawnPoint.x; // current room's entry point
         knight.position.y = spawnPoint.y;
         knight.position.z = spawnPoint.z;
         knight.rotation.x = 0;
@@ -256,18 +383,16 @@
         knight.scale.y = 1;
         knight.scale.z = 1;
 
-        // heal back to full and clear any leftover invincibility
         knight.visible = true;
         knightHealth = maxHearts;
         invincibleTimer = 0;
         updateHearts();
 
-        console.log("Larry has been resurrected! Position:", knight.position, "Rotation:", knight.rotation);
+        console.log("Larry has been resurrected!");
 
         fadeOverlay.style.opacity = '0';
         setTimeout(() => {
           knightState = 'alive';
-          console.log("Respawned and ready to fight green Easter eggs!");
         }, 400);
       }, 400);
     }
@@ -275,39 +400,38 @@
     // --- KNIGHT HEALTH ---
     const maxHearts = 5;
     let knightHealth = maxHearts;
-    let invincibleTimer = 0;            // seconds of "can't be hurt" remaining (i-frames)
-    const invincibleDuration = 1.0;     // how long you're safe after getting hit
-    let blinkTimer = 0;                 // used to flash the knight while invincible
+    let invincibleTimer = 0;
+    const invincibleDuration = 1.0;
+    let blinkTimer = 0;
     const heartsUI = document.getElementById('hearts');
 
     function updateHearts() {
       let display = '';
       for (let i = 0; i < maxHearts; i++) {
-        display += (i < knightHealth) ? '\u2764\uFE0F' : '\uD83E\uDD0D'; // red heart vs white heart
+        display += (i < knightHealth) ? '\u2764\uFE0F' : '\uD83E\uDD0D';
       }
       heartsUI.textContent = display;
     }
-    updateHearts(); // draw them once at the start
 
     function takeDamage(amount) {
-      if (knightState !== 'alive') return;  // can't be hurt while falling/respawning
-      if (invincibleTimer > 0) return;      // currently in i-frames, ignore the hit
+      if (knightState !== 'alive') return;
+      if (invincibleTimer > 0) return;
       knightHealth -= amount;
-      invincibleTimer = invincibleDuration; // start the "safe" window
+      invincibleTimer = invincibleDuration;
       updateHearts();
-      console.log("OUCH! Larry took damage. Hearts left:", knightHealth);
+      console.log("OUCH! Hearts left:", knightHealth);
       if (knightHealth <= 0) {
         console.log("Larry has fallen... respawning!");
-        respawnKnight();                    // fade out, reset, and heal to full
+        respawnKnight();
       }
     }
 
-    // --- COMBAT STATE ---
+    // --- COMBAT STATE --- (your tuning kept)
     let isSwinging = false, swingTimer = 0, hasHitThisSwing = false, cooldownTimer = 0;
     const swingDuration = 0.08, swingCooldown = 0.0001, hitRange = 2, swordDamage = 1;
 
     function startSwing() {
-      if (knightState !== 'alive') return; // Can't swing while falling!
+      if (knightState !== 'alive') return;
       if (isSwinging || cooldownTimer > 0) return;
       isSwinging = true;
       swingTimer = 0;
@@ -335,13 +459,33 @@
     camera.position.set(0, knight.position.y + cameraHeight, cameraDistance);
     camera.lookAt(0, 1.6, 0);
 
+    // --- START THE GAME in the first room ---
+    updateHearts();
+    updateKeysUI();
+    loadRoom('start', 0, 0);
+
     // --- GAME LOOP ---
     function animate() {
       requestAnimationFrame(animate);
 
+      // --- always-on timers + item animation ---
       if (cooldownTimer > 0) cooldownTimer -= 1 / 60;
+      if (transitionCooldown > 0) transitionCooldown -= 1 / 60;
+      if (messageTimer > 0) {
+        messageTimer -= 1 / 60;
+        if (messageTimer <= 0) messageUI.style.opacity = '0';
+      }
+      // make keys + treasure float and spin so they catch your eye
+      for (const k of keyItems) {
+        k.rotation.y += 0.05;
+        k.position.y = 0.8 + Math.sin(Date.now() * 0.004) * 0.15;
+      }
+      for (const t of treasures) {
+        t.rotation.y += 0.03;
+        t.position.y = 0.9 + Math.sin(Date.now() * 0.003) * 0.2;
+      }
 
-      // Enemy effects (always update, even during fall/respawn)
+      // --- enemy effects + AI ---
       for (let i = 0; i < enemies.length; i++) {
         const enemy = enemies[i];
         if (enemy.userData.isDying) {
@@ -357,7 +501,7 @@
             enemy.scale.y = flatten * 0.5;
             enemy.scale.x = spread * shrink;
             enemy.scale.z = spread * shrink;
-            enemy.position.y = enemy.userData.baseY * flatten; // melt down to its own floor height
+            enemy.position.y = enemy.userData.baseY * flatten;
           }
           continue;
         }
@@ -370,7 +514,6 @@
         }
 
         if (enemy.userData.knockbackTimer > 0) {
-          // Getting knocked back from a sword hit takes priority over chasing
           enemy.userData.knockbackTimer -= 1 / 60;
           const nx = enemy.position.x + enemy.userData.knockbackX;
           const nz = enemy.position.z + enemy.userData.knockbackZ;
@@ -381,18 +524,14 @@
           enemy.userData.knockbackX *= 0.85;
           enemy.userData.knockbackZ *= 0.85;
         } else if (knightState === 'alive') {
-          // --- CHASE AI ---  (now uses each enemy's OWN speed)
+          // CHASE using each enemy's own speed
           const dx = knight.position.x - enemy.position.x;
           const dz = knight.position.z - enemy.position.z;
           const dist = Math.sqrt(dx * dx + dz * dz);
-
-          if (dist > 0.5) { // stop nudging once we're basically on top of the knight
-            // Divide by dist to get a length-1 direction, then scale by THIS enemy's speed.
+          if (dist > 0.5) {
             const stepX = (dx / dist) * enemy.userData.speed;
             const stepZ = (dz / dist) * enemy.userData.speed;
             const r = enemy.userData.radius;
-
-            // Move X and Z separately so enemies slide along walls. Don't walk into pits.
             if (!isPositionBlocked(enemy.position.x + stepX, enemy.position.z, r) &&
                 !isOverPit(enemy.position.x + stepX, enemy.position.z)) {
               enemy.position.x += stepX;
@@ -404,7 +543,7 @@
           }
         }
 
-        // --- CONTACT DAMAGE ---  (now uses each enemy's OWN damage)
+        // CONTACT DAMAGE using each enemy's own damage
         const touchDist = knight.position.distanceTo(enemy.position);
         if (touchDist < knightRadius + enemy.userData.radius) {
           takeDamage(enemy.userData.damage);
@@ -413,30 +552,26 @@
 
       // --- KNIGHT STATE HANDLING ---
       if (knightState === 'falling') {
-        // Fall animation - sink down and shrink
         fallTimer += 1 / 60;
         const progress = fallTimer / fallDuration;
-
         if (progress >= 1) {
           respawnKnight();
         } else {
-          // Sink and shrink dramatically
-          knight.position.y = 0.8 - progress * 2.5;       // Sink down 2.5 units
+          knight.position.y = 0.8 - progress * 2.5;
           knight.scale.set(1 - progress * 0.3, 1 - progress * 0.5, 1 - progress * 0.3);
-          knight.rotation.z = progress * 0.5;             // Tilt as falling
+          knight.rotation.z = progress * 0.5;
         }
       } else if (knightState === 'alive') {
 
-        // --- INVINCIBILITY FRAMES ---
-        // After a hit, count down the safe window and blink the knight.
+        // INVINCIBILITY FRAMES (blink after a hit)
         if (invincibleTimer > 0) {
           invincibleTimer -= 1 / 60;
           blinkTimer += 1 / 60;
-          if (blinkTimer > 0.1) {              // flip visible on/off every 0.1s = fast flash
+          if (blinkTimer > 0.1) {
             knight.visible = !knight.visible;
             blinkTimer = 0;
           }
-          if (invincibleTimer <= 0) knight.visible = true; // always end visible
+          if (invincibleTimer <= 0) knight.visible = true;
         }
 
         // --- TANK CONTROLS ---
@@ -448,10 +583,8 @@
         if (keys.up) walkAmount = 1;
         if (keys.down) walkAmount = -0.5;
 
-        const isMoving = (walkAmount !== 0);
-
         let moveX = 0, moveZ = 0;
-        if (isMoving) {
+        if (walkAmount !== 0) {
           const forwardX = -Math.sin(knight.rotation.y);
           const forwardZ = -Math.cos(knight.rotation.y);
           moveX = forwardX * walkAmount;
@@ -463,12 +596,50 @@
         if (!isPositionBlocked(newX, knight.position.z, knightRadius)) knight.position.x = newX;
         if (!isPositionBlocked(knight.position.x, newZ, knightRadius)) knight.position.z = newZ;
 
-        // PIT CHECK! Did we walk over a pit?
+        // PIT CHECK
         if (isOverPit(knight.position.x, knight.position.z)) {
           startFalling();
         }
 
-        // Sword swing + hit detection (only when alive)
+        // --- ROOM INTERACTIONS: doors, keys, treasure ---  (NEW)
+        // Doors (skip briefly after arriving so you don't bounce straight back)
+        if (transitionCooldown <= 0) {
+          for (const door of doors) {
+            if (knight.position.distanceTo(door.position) < 1.6) {
+              if (door.userData.locked && playerKeys <= 0) {
+                showMessage('Locked! You need a key.', 1.0);
+              } else {
+                if (door.userData.locked) {
+                  playerKeys -= 1;              // spend a key
+                  updateKeysUI();
+                  showMessage('Used a key!', 1.2);
+                }
+                loadRoom(door.userData.to, door.userData.arriveX, door.userData.arriveZ);
+              }
+              break; // loadRoom emptied doors[], so stop looping
+            }
+          }
+        }
+        // Pick up keys (loop backwards because we remove items as we go)
+        for (let i = keyItems.length - 1; i >= 0; i--) {
+          if (knight.position.distanceTo(keyItems[i].position) < 1.2) {
+            scene.remove(keyItems[i]);
+            keyItems.splice(i, 1);
+            playerKeys += 1;
+            updateKeysUI();
+            showMessage('Picked up a key! \uD83D\uDD11', 1.5);
+          }
+        }
+        // Grab treasure
+        for (let i = treasures.length - 1; i >= 0; i--) {
+          if (knight.position.distanceTo(treasures[i].position) < 1.4) {
+            scene.remove(treasures[i]);
+            treasures.splice(i, 1);
+            showMessage('\uD83C\uDFC6 You found the treasure! Dungeon cleared!', 4);
+          }
+        }
+
+        // --- SWORD SWING + HIT DETECTION ---
         if (isSwinging) {
           swingTimer += 1 / 60 / swingDuration;
           if (swingTimer >= 1) {
@@ -489,7 +660,7 @@
                 hasHitThisSwing = true;
                 console.log("HIT! Enemy HP:", enemy.userData.health);
                 enemy.userData.hitFlashTimer = 0.15;
-                enemy.material.color.setHex(0xffffff); // flash WHITE so it shows on any enemy color
+                enemy.material.color.setHex(0xffffff);
                 const kx = enemy.position.x - knight.position.x;
                 const kz = enemy.position.z - knight.position.z;
                 const kl = Math.sqrt(kx * kx + kz * kz);
@@ -508,7 +679,7 @@
           }
         }
       }
-      // (No else for 'respawning' - knight just sits there during the fade)
+      // (No else for 'respawning' - knight just waits during the fade)
 
       // --- CAMERA ---
       const cameraSmoothness = 0.1;
@@ -516,7 +687,7 @@
       const targetCameraX = knight.position.x + Math.sin(knightAngle) * cameraDistance;
       const targetCameraZ = knight.position.z + Math.cos(knightAngle) * cameraDistance;
       camera.position.x += (targetCameraX - camera.position.x) * cameraSmoothness;
-      camera.position.y = knight.position.y + cameraHeight + 1; // a bit higher to see down into pits
+      camera.position.y = knight.position.y + cameraHeight + 1;
       camera.position.z += (targetCameraZ - camera.position.z) * cameraSmoothness;
       camera.lookAt(knight.position.x, 1.6, knight.position.z);
 
