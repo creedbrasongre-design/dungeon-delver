@@ -115,7 +115,7 @@
       const slimeGeometry = new THREE.SphereGeometry(0.6, 12, 8);
       const slimeMaterial = new THREE.MeshStandardMaterial({ color: 0x44dd44, roughness: 0.4 });
       const slime = new THREE.Mesh(slimeGeometry, slimeMaterial);
-      slime.position.set(x, 0, z);
+      slime.position.set(x, 0.6, z);
       slime.userData = {
         health: 5,
         isAlive: true,
@@ -131,9 +131,7 @@
     }
 
     createSlime(0, -5);
-    createSlime(0, 5);
-    createSlime(5, 0);
-    createSlime(-5, 0);
+
     // --- SWORD SWING STATE ---
     let isSwinging = false;
     let swingTimer = 0;
