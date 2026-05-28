@@ -204,14 +204,22 @@
       fadeOverlay.style.opacity = '1';
 
       setTimeout(() => {
-        knight.position.set(spawnPoint.x, spawnPoint.y, spawnPoint.z);
+        // NUCLEAR RESET - explicitly reset EVERY property
+        knight.position.x = spawnPoint.x;
+        knight.position.y = spawnPoint.y;
+        knight.position.z = spawnPoint.z;
+        knight.rotation.x = 0;
         knight.rotation.y = 0;
-        knight.scale.set(1, 1, 1);
+        knight.rotation.z = 0;
+        knight.scale.x = 1;
+        knight.scale.y = 1;
+        knight.scale.z = 1;
+        console.log("Larry has been resurrected! Position:", knight.position, "Rotation:", knight.rotation);
 
         fadeOverlay.style.opacity = '0';
         setTimeout(() => {
           knightState = 'alive';
-          console.log("Respawned!");
+          console.log("Respawned and ready to fight green Easter eggs!");
         }, 400);
       }, 400);
     }
