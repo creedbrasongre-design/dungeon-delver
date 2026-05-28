@@ -119,6 +119,8 @@
       slime.userData = {
         health: 5,
         isAlive: true,
+        isDying: false,          // Currently melting?
+        deathTimer: 0,           // How far into the death animation
         hitFlashTimer: 0,
         normalColor: 0x44dd44,
         knockbackX: 0,
@@ -181,9 +183,34 @@
         cooldownTimer -= 1 / 60;
       }
 
-      // Update enemy effects (flash + knockback)
+      // Update enemy effects (flash + knockback + death melt)
       for (let i = 0; i < enemies.length; i++) {
         const enemy = enemies[i];
+
+        // --- DEATH MELT ANIMATION ---
+        if (enemy.userData.isDying) {
+          enemy.userData.deathTimer += 1 / 60;
+          const meltDuration = 1.5; // Takes 1.5 seconds to melt
+          const progress = enemy.userData.deathTimer / meltDuration; // 0 to 1
+
+          if (progress >= 1) {
+            // Fully melted - remove it!
+            scene.remove(enemy);
+            enemy.userData.isDying = false;
+          } else {
+            // Flatten (squash height), spread (widen), then shrink away
+            const flatten = 1 - progress;             // Height shrinks: 1 → 0
+            const spread = 1 + progress * 0.8;         // Width grows: 1 → 1.8
+            const shrink = 1 - progress;               // Overall shrink near end
+
+            enemy.scale.y = flatten * 0.5;             // Squash down fast
+            enemy.scale.x = spread * shrink;           // Spread then shrink
+            enemy.scale.z = spread * shrink;
+            enemy.position.y = 0.6 * flatten;          // Sink toward floor
+          }
+          continue; // Skip other effects while dying
+        }
+
         if (!enemy.userData.isAlive) continue;
 
         // Hit flash effect
@@ -199,11 +226,9 @@
         if (enemy.userData.knockbackTimer > 0) {
           enemy.userData.knockbackTimer -= 1 / 60;
 
-          // Apply the knockback push
           enemy.position.x += enemy.userData.knockbackX;
           enemy.position.z += enemy.userData.knockbackZ;
 
-          // Slow down the knockback over time (deceleration)
           enemy.userData.knockbackX *= 0.85;
           enemy.userData.knockbackZ *= 0.85;
         }
@@ -282,11 +307,12 @@
               enemy.userData.knockbackZ = (knockbackDirZ / knockbackLength) * knockbackStrength;
               enemy.userData.knockbackTimer = 0.2;
 
-              // Check if enemy died
+              // Check if enemy died - start the melt animation!
               if (enemy.userData.health <= 0) {
                 enemy.userData.isAlive = false;
-                scene.remove(enemy);
-                console.log("Slime defeated!");
+                enemy.userData.isDying = true;
+                enemy.userData.deathTimer = 0;
+                console.log("Slime defeated! Melting...");
               }
 
               break;
