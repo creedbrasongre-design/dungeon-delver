@@ -356,10 +356,18 @@
         }
       }
 
-      // Camera follow
-      camera.position.x = knight.position.x;
-      camera.position.z = knight.position.z + 6;
-      camera.lookAt(knight.position.x, 1.6, knight.position.z);
+      // Camera follow - smooth lerp (OOT-style!)
+      const cameraSmoothness = 0.08;
+      const targetCameraX = knight.position.x;
+      const targetCameraZ = knight.position.z + 6;
+
+      camera.position.x += (targetCameraX - camera.position.x) * cameraSmoothness;
+      camera.position.z += (targetCameraZ - camera.position.z) * cameraSmoothness;
+
+      // Also smoothly drift the look-at point
+      const lookAtX = knight.position.x;
+      const lookAtZ = knight.position.z;
+      camera.lookAt(lookAtX, 1.6, lookAtZ);
 
       renderer.render(scene, camera);
     }
