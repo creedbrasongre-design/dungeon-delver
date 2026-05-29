@@ -132,49 +132,17 @@
       g.position.set(x, 0, z);
       scene.add(g); props.push(g); return g;
     }
-    // ALL grass blades live in ONE InstancedMesh = ONE draw call (no lag, even with thousands)
-    let grassMesh = null;
-    function buildGrass(clumpCount, size) {
-      const bladesPerClump = 7;
-      const total = clumpCount * bladesPerClump;
-      const geo = new THREE.ConeGeometry(0.13, 1.2, 4); // bigger, taller blade
-      geo.translate(0, 0.6, 0);                          // sit it on the ground
+    function createGrass(x, z) {
+      const g = new THREE.Group();
       const mat = new THREE.MeshStandardMaterial({ color: 0x3f9a3a, roughness: 1 });
-      grassMesh = new THREE.InstancedMesh(geo, mat, total);
-      const dummy = new THREE.Object3D();                // helper to build each blade's position
-      let idx = 0;
-      for (let c = 0; c < clumpCount; c++) {
-        const cx = (Math.random()-0.5)*(size-10);
-        const cz = (Math.random()-0.5)*(size-10);
-        for (let b = 0; b < bladesPerClump; b++) {
-          dummy.position.set(cx + (Math.random()-0.5)*2.4, 0, cz + (Math.random()-0.5)*2.4);
-          dummy.rotation.set((Math.random()-0.5)*0.4, Math.random()*Math.PI, (Math.random()-0.5)*0.4);
-          const s = 0.8 + Math.random()*0.9;
-          dummy.scale.set(s, s, s);
-          dummy.updateMatrix();
-          grassMesh.setMatrixAt(idx++, dummy.matrix);
-        }
+      for (let i = 0; i < 3; i++) {
+        const blade = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.6, 4), mat);
+        blade.position.set((Math.random()-0.5)*0.45, 0.3, (Math.random()-0.5)*0.45);
+        blade.rotation.z = (Math.random()-0.5)*0.5;
+        g.add(blade);
       }
-      grassMesh.instanceMatrix.needsUpdate = true;
-      scene.add(grassMesh);
-    }
-
-    // A grass-LOOKING floor: it's drawn once as the ground, so this costs nothing extra.
-    let grassTexture = null;
-    function makeGrassTexture() {
-      const c = document.createElement('canvas');
-      c.width = 128; c.height = 128;
-      const ctx = c.getContext('2d');
-      ctx.fillStyle = '#4a8a3a'; ctx.fillRect(0, 0, 128, 128);     // base green
-      const greens = ['#3f9a3a','#5aa84a','#3a7d32','#6bbd55','#2f7d2a'];
-      for (let i = 0; i < 1600; i++) {                              // paint tiny blades
-        ctx.strokeStyle = greens[(Math.random()*greens.length)|0];
-        const x = Math.random()*128, y = Math.random()*128, len = 2 + Math.random()*4;
-        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + (Math.random()-0.5)*2, y - len); ctx.stroke();
-      }
-      const tex = new THREE.CanvasTexture(c);
-      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;                 // tile it across the ground
-      return tex;
+      g.position.set(x, 0, z);
+      scene.add(g); props.push(g); return g;
     }
     function createCactus(x, z) {
       const g = new THREE.Group();
@@ -396,14 +364,14 @@
     // --- ARROWS ---
     const arrows = [];
     const arrowSpeed = 0.55, arrowDamage = 2;
-    function spawnArrow(yaw, pitch) {
-      const hX = -Math.sin(yaw), hZ = -Math.cos(yaw);
-      const dirX = hX * Math.cos(pitch), dirZ = hZ * Math.cos(pitch), dirY = Math.sin(pitch);
+    function spawnArrow(dx, dy, dz) {
+      const len = Math.sqrt(dx*dx + dy*dy + dz*dz) || 1;
+      dx /= len; dy /= len; dz /= len;                 // make it a unit direction
       const a = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.8, 6),
         new THREE.MeshStandardMaterial({ color: 0xffeeaa, roughness: 0.4 }));
-      a.position.set(knight.position.x + dirX * 0.6, 1.3 + dirY * 0.6, knight.position.z + dirZ * 0.6);
-      a.rotation.order = 'YXZ'; a.rotation.y = yaw; a.rotation.x = Math.PI / 2 - pitch;
-      a.userData = { vx: dirX * arrowSpeed, vy: dirY * arrowSpeed, vz: dirZ * arrowSpeed, life: 160 };
+      a.position.set(knight.position.x + dx * 0.6, 1.3 + dy * 0.6, knight.position.z + dz * 0.6);
+      a.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), new THREE.Vector3(dx,dy,dz)); // point it along its flight
+      a.userData = { vx: dx * arrowSpeed, vy: dy * arrowSpeed, vz: dz * arrowSpeed, life: 160 };
       scene.add(a); arrows.push(a);
     }
 
@@ -669,7 +637,6 @@
       for (const sh of enemyShots) scene.remove(sh);
       for (const pp of props) scene.remove(pp);
       for (const cl of clouds) scene.remove(cl);
-      if (grassMesh) { scene.remove(grassMesh); grassMesh.geometry.dispose(); grassMesh.material.dispose(); grassMesh = null; }
       walls.length=0; pits.length=0; enemies.length=0; doors.length=0;
       stairsList.length=0; portals.length=0; items.length=0; chests.length=0;
       arrows.length=0; enemyShots.length=0; props.length=0; clouds.length=0;
@@ -686,16 +653,7 @@
       ceiling.scale.set(S / roomSize, S / roomSize, 1);
       ceiling.visible = !room.outdoor;
 
-      if (room.grass) {
-        if (!grassTexture) grassTexture = makeGrassTexture();
-        floor.material.map = grassTexture;
-        grassTexture.repeat.set(S / 10, S / 10);   // one grass tile per ~10 units
-        floor.material.color.setHex(0xffffff);      // white = show the texture's real colors
-      } else {
-        floor.material.map = null;                  // dungeons/desert keep their flat color
-        floor.material.color.setHex(room.floorColor !== undefined ? room.floorColor : 0x666666);
-      }
-      floor.material.needsUpdate = true;
+      floor.material.color.setHex(room.floorColor !== undefined ? room.floorColor : 0x666666);
       wallMaterial.color.setHex(room.wallColor !== undefined ? room.wallColor : 0x554433);
       ceiling.material.color.setHex(room.ceilColor !== undefined ? room.ceilColor : 0x3a3a3a);
       scene.background.setHex(room.bg !== undefined ? room.bg : 0x111111);
@@ -712,8 +670,10 @@
       for (const t of (room.trees||[])) createTree(t[0], t[1]);
       for (const c of (room.cacti||[])) createCactus(c[0], c[1]);
 
-      // grass: every blade packed into a single InstancedMesh (one draw call, lag-free)
-      if (room.grass) buildGrass(room.grassClumps || 250, S);
+      // scatter grass tufts across grass regions
+      if (room.grass) {
+        for (let i = 0; i < 70; i++) createGrass((Math.random()-0.5)*(S-10), (Math.random()-0.5)*(S-10));
+      }
       // clouds for outdoor regions
       if (room.outdoor) {
         for (let i = 0; i < 14; i++) createCloud((Math.random()-0.5)*S, 24 + Math.random()*14, (Math.random()-0.5)*S);
@@ -759,7 +719,6 @@
       if (roomId === 'desert_field') showMessage('Gerudo Sands. A dungeon lies to the south.', 3);
     }
 
-    // --- KNIGHT STATE ---
     // --- KNIGHT STATE ---
     let knightState = 'alive';
     let fallTimer = 0;
@@ -830,12 +789,15 @@
 
     // --- BOW + AIM ---
     let aiming = false, aimYaw = 0, aimPitch = 0, arrowCooldown = 0;
+    const raycaster = new THREE.Raycaster();
+    const aimTarget = new THREE.Vector3();        // the world spot under the crosshair
+    const screenCenter = new THREE.Vector2(0, 0); // dead center of the screen
     function shootArrow() {
       if (knightState !== 'alive') return;
       if (!hasBow) { showMessage('You need the bow first!', 1.2); return; }
       if (playerArrows <= 0) { showMessage('Out of arrows!', 1.2); return; }
       if (arrowCooldown > 0) return;
-      spawnArrow(knight.rotation.y + aimYaw, aimPitch);
+      spawnArrow(aimTarget.x - knight.position.x, aimTarget.y - 1.3, aimTarget.z - knight.position.z);
       playerArrows -= 1; updateAmmoUI();
       arrowCooldown = 0.25;
     }
@@ -865,7 +827,7 @@
     window.addEventListener('keydown', (event) => setKey(event, true));
     window.addEventListener('keyup', (event) => setKey(event, false));
 
-    const moveSpeed = 0.23;
+    const moveSpeed = 0.165;
 
     // --- CAMERA ---
     const cameraDistance = 6, cameraHeight = 3.5, minCamDist = 1.8, camClearance = 0.6;
@@ -1138,21 +1100,35 @@
       currentCamDist += (allowedDist - currentCamDist) * distSmooth;
 
       camera.position.x += (knight.position.x + dirX*currentCamDist - camera.position.x) * 0.18;
-      camera.position.y = aiming ? (knight.position.y + 0.7) : (knight.position.y + cameraHeight + 1);
+      // sit a bit above while aiming so the player drops below the crosshair (clear view ahead)
+      camera.position.y = aiming ? (knight.position.y + 2.0) : (knight.position.y + cameraHeight + 1);
       camera.position.z += (knight.position.z + dirZ*currentCamDist - camera.position.z) * 0.18;
 
       if (aiming) {
-        const cp = Math.cos(aimPitch);
-        const aimX = -Math.sin(camAngle) * cp;
-        const aimY = Math.sin(aimPitch);
-        const aimZ = -Math.cos(camAngle) * cp;
-        camera.lookAt(camera.position.x + aimX/10, camera.position.y + aimY*10, camera.position.z + aimZ*10);
+        // look at a spot out in FRONT of the player; I/K tilt it up/down, J/L sweep it
+        const fX = -Math.sin(camAngle), fZ = -Math.cos(camAngle);
+        camera.lookAt(knight.position.x + fX*5, 1.2 + aimPitch*5, knight.position.z + fZ*5);
       } else {
         camera.lookAt(knight.position.x, 1.6, knight.position.z);
       }
 
       const targetFov = aiming ? 34 : 60;
       if (Math.abs(camera.fov - targetFov) > 0.05) { camera.fov += (targetFov - camera.fov) * 0.25; camera.updateProjectionMatrix(); }
+
+      // find the world point under the crosshair so arrows hit exactly where you point
+      if (aiming) {
+        camera.updateMatrixWorld();
+        raycaster.setFromCamera(screenCenter, camera);
+        let hit = null;
+        const eHits = raycaster.intersectObjects(enemies.filter(e => e.userData.isAlive), false);
+        if (eHits.length) hit = eHits[0].point;              // 1) aiming right at an enemy
+        if (!hit) {                                           // 2) else hit the ground
+          const o = raycaster.ray.origin, d = raycaster.ray.direction;
+          if (Math.abs(d.y) > 1e-4) { const t = -o.y / d.y; if (t > 0) hit = o.clone().add(d.clone().multiplyScalar(t)); }
+        }
+        if (!hit) hit = raycaster.ray.origin.clone().add(raycaster.ray.direction.clone().multiplyScalar(40)); // 3) far ahead
+        aimTarget.copy(hit);
+      }
 
       renderer.render(scene, camera);
     }
