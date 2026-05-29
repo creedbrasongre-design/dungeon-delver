@@ -132,17 +132,31 @@
       g.position.set(x, 0, z);
       scene.add(g); props.push(g); return g;
     }
-    function createGrass(x, z) {
-      const g = new THREE.Group();
+    // ALL grass blades live in ONE InstancedMesh = ONE draw call (no lag, even with thousands)
+    let grassMesh = null;
+    function buildGrass(clumpCount, size) {
+      const bladesPerClump = 7;
+      const total = clumpCount * bladesPerClump;
+      const geo = new THREE.ConeGeometry(0.13, 1.2, 4); // bigger, taller blade
+      geo.translate(0, 0.6, 0);                          // sit it on the ground
       const mat = new THREE.MeshStandardMaterial({ color: 0x3f9a3a, roughness: 1 });
-      for (let i = 0; i < 3; i++) {
-        const blade = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.6, 4), mat);
-        blade.position.set((Math.random()-0.5)*0.45, 0.3, (Math.random()-0.5)*0.45);
-        blade.rotation.z = (Math.random()-0.5)*0.5;
-        g.add(blade);
+      grassMesh = new THREE.InstancedMesh(geo, mat, total);
+      const dummy = new THREE.Object3D();                // helper to build each blade's position
+      let idx = 0;
+      for (let c = 0; c < clumpCount; c++) {
+        const cx = (Math.random()-0.5)*(size-10);
+        const cz = (Math.random()-0.5)*(size-10);
+        for (let b = 0; b < bladesPerClump; b++) {
+          dummy.position.set(cx + (Math.random()-0.5)*2.4, 0, cz + (Math.random()-0.5)*2.4);
+          dummy.rotation.set((Math.random()-0.5)*0.4, Math.random()*Math.PI, (Math.random()-0.5)*0.4);
+          const s = 0.8 + Math.random()*0.9;
+          dummy.scale.set(s, s, s);
+          dummy.updateMatrix();
+          grassMesh.setMatrixAt(idx++, dummy.matrix);
+        }
       }
-      g.position.set(x, 0, z);
-      scene.add(g); props.push(g); return g;
+      grassMesh.instanceMatrix.needsUpdate = true;
+      scene.add(grassMesh);
     }
     function createCactus(x, z) {
       const g = new THREE.Group();
@@ -637,6 +651,7 @@
       for (const sh of enemyShots) scene.remove(sh);
       for (const pp of props) scene.remove(pp);
       for (const cl of clouds) scene.remove(cl);
+      if (grassMesh) { scene.remove(grassMesh); grassMesh.geometry.dispose(); grassMesh.material.dispose(); grassMesh = null; }
       walls.length=0; pits.length=0; enemies.length=0; doors.length=0;
       stairsList.length=0; portals.length=0; items.length=0; chests.length=0;
       arrows.length=0; enemyShots.length=0; props.length=0; clouds.length=0;
@@ -670,10 +685,8 @@
       for (const t of (room.trees||[])) createTree(t[0], t[1]);
       for (const c of (room.cacti||[])) createCactus(c[0], c[1]);
 
-      // scatter grass tufts across grass regions
-      if (room.grass) {
-        for (let i = 0; i < 90; i++) createGrass((Math.random()-0.5)*(S-10), (Math.random()-0.5)*(S-10));
-      }
+      // grass: every blade packed into a single InstancedMesh (one draw call, lag-free)
+      if (room.grass) buildGrass(room.grassClumps || 250, S);
       // clouds for outdoor regions
       if (room.outdoor) {
         for (let i = 0; i < 14; i++) createCloud((Math.random()-0.5)*S, 24 + Math.random()*14, (Math.random()-0.5)*S);
