@@ -130,7 +130,7 @@
 
     function createWall(x, z, width, depth) {
       // Make every wall at least this thick so the camera can't peek past thin walls
-      const minThickness = 2;
+      const minThickness = 1.7;
       if (width < minThickness) width = minThickness;
       if (depth < minThickness) depth = minThickness;
       const wall = new THREE.Mesh(new THREE.BoxGeometry(width, wallHeight, depth), wallMaterial);
