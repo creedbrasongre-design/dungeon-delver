@@ -48,7 +48,7 @@
 
   <script>
     // =====================================================
-    // DUNGEON DELVER - Phase 15: Overworld + Enemy Sight Range
+    // DUNGEON DELVER - Phase 17: Desert Region + Grass
     // =====================================================
 
     const scene = new THREE.Scene();
@@ -63,15 +63,15 @@
     const fadeOverlay = document.getElementById('fadeOverlay');
 
     // --- LIGHTING ---
-    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+    scene.add(new THREE.AmbientLight(0xffffff, 0.75));
     const torchLight = new THREE.PointLight(0xffaa55, 140, 60);
     torchLight.position.set(0, 6.5, 0);
     scene.add(torchLight);
-    const sunLight = new THREE.DirectionalLight(0xffffff, 0.6);
-    sunLight.position.set(8, 16, 6);
+    const sunLight = new THREE.DirectionalLight(0xffffff, 0.7);
+    sunLight.position.set(20, 40, 15);
     scene.add(sunLight);
 
-    // --- FLOOR (scaled per room so the overworld can be bigger) ---
+    // --- FLOOR (scaled per room) ---
     const roomSize = 30;
     const floor = new THREE.Mesh(
       new THREE.PlaneGeometry(roomSize, roomSize),
@@ -90,16 +90,17 @@
     ceiling.position.y = wallHeight;
     scene.add(ceiling);
 
-    // --- WALLS ---
+    // --- WALLS (optional HEIGHT param) ---
     const walls = [];
     const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x554433 });
 
-    function createWall(x, z, width, depth) {
+    function createWall(x, z, width, depth, height) {
+      height = height || wallHeight;
       const minThickness = 1.3;
       if (width < minThickness) width = minThickness;
       if (depth < minThickness) depth = minThickness;
-      const wall = new THREE.Mesh(new THREE.BoxGeometry(width, wallHeight, depth), wallMaterial);
-      wall.position.set(x, wallHeight / 2, z);
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), wallMaterial);
+      wall.position.set(x, height / 2, z);
       wall.userData = { minX:x-width/2, maxX:x+width/2, minZ:z-depth/2, maxZ:z+depth/2 };
       scene.add(wall);
       walls.push(wall);
@@ -118,7 +119,7 @@
       return pit;
     }
 
-    // --- TREES (decoration, walk-through) ---
+    // --- DECORATION PROPS (trees / grass / cacti) ---
     const props = [];
     function createTree(x, z) {
       const g = new THREE.Group();
@@ -130,6 +131,46 @@
       leaves.position.y = 3.4; g.add(leaves);
       g.position.set(x, 0, z);
       scene.add(g); props.push(g); return g;
+    }
+    function createGrass(x, z) {
+      const g = new THREE.Group();
+      const mat = new THREE.MeshStandardMaterial({ color: 0x3f9a3a, roughness: 1 });
+      for (let i = 0; i < 3; i++) {
+        const blade = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.6, 4), mat);
+        blade.position.set((Math.random()-0.5)*0.45, 0.3, (Math.random()-0.5)*0.45);
+        blade.rotation.z = (Math.random()-0.5)*0.5;
+        g.add(blade);
+      }
+      g.position.set(x, 0, z);
+      scene.add(g); props.push(g); return g;
+    }
+    function createCactus(x, z) {
+      const g = new THREE.Group();
+      const mat = new THREE.MeshStandardMaterial({ color: 0x3a7d4a, roughness: 0.8 });
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.45, 2.6, 8), mat);
+      body.position.y = 1.3; g.add(body);
+      const armL = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 1, 8), mat);
+      armL.position.set(-0.55, 1.4, 0); armL.rotation.z = 0.5; g.add(armL);
+      const armR = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 1, 8), mat);
+      armR.position.set(0.55, 1.7, 0); armR.rotation.z = -0.5; g.add(armR);
+      g.position.set(x, 0, z);
+      scene.add(g); props.push(g); return g;
+    }
+
+    // --- CLOUDS ---
+    const clouds = [];
+    function createCloud(x, y, z) {
+      const g = new THREE.Group();
+      const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, emissive: 0x223044, emissiveIntensity: 0.4 });
+      const puffs = [ [0,0,0,3], [3,-0.4,0,2.2], [-3,-0.3,0,2.4], [1.4,0.6,1.8,2], [-1.4,0.5,-1.8,2.1] ];
+      for (const p of puffs) {
+        const s = new THREE.Mesh(new THREE.SphereGeometry(p[3], 8, 6), mat);
+        s.position.set(p[0], p[1], p[2]);
+        g.add(s);
+      }
+      g.position.set(x, y, z);
+      g.userData = { driftSpeed: 0.01 + Math.random() * 0.03 };
+      scene.add(g); clouds.push(g); return g;
     }
 
     // --- KNIGHT ---
@@ -158,7 +199,7 @@
     sword.rotation.y = -0.3;
     knight.add(sword);
 
-    // --- ENEMY TYPES (now with sightRange = how far they notice you) ---
+    // --- ENEMY TYPES ---
     const ENEMY_TYPES = {
       greenSlime: { color: 0x44dd44, health: 5, speed: 0.05625, radius: 0.6,  damage: 1, shape: 'slime', sightRange: 9 },
       redSlime:   { color: 0xff5533, health: 3, speed: 0.09,    radius: 0.55, damage: 1, shape: 'slime', sightRange: 11 },
@@ -201,7 +242,7 @@
       if (isBoss) {
         enemy.userData.isBoss = true;
         enemy.userData.health = 20;
-        enemy.userData.sightRange = 999; // bosses always notice you
+        enemy.userData.sightRange = 999;
         const bossColor = 0x884466;
         enemy.userData.normalColor = bossColor;
         enemy.material.color.setHex(bossColor);
@@ -263,7 +304,6 @@
     const portals = [];
     function createPortal(p) {
       if (p.comingSoon) {
-        // a stone archway marking a future region
         const g = new THREE.Group();
         const mat = new THREE.MeshStandardMaterial({ color: 0x8a8a96, roughness: 0.9 });
         const left  = new THREE.Mesh(new THREE.BoxGeometry(0.6, 3, 0.6), mat); left.position.set(-1.2, 1.5, 0); g.add(left);
@@ -368,27 +408,46 @@
       defeatedBosses: new Set(), takenKeys: new Set(), tookTreasure: new Set(),
       unlockedDoors: new Set(), openedChests: new Set()
     };
-    let dungeon1Clear = false;
 
     // --- ROOMS ---
     const ROOMS = {
-      // ============ OVERWORLD: MAIN REGION (open grassland hub) ============
+      // ============ OVERWORLD: MAIN REGION (big grassland) ============
       mainland: {
         label: 'Hyralia Fields - Main Region',
-        outdoor: true, size: 50,
-        floorColor: 0x4a8a3a, wallColor: 0x2f5a25, bg: 0x87b6e8, // grass / hedge / sky
+        outdoor: true, size: 200, grass: true,
+        floorColor: 0x4a8a3a, wallColor: 0x8f897e, bg: 0x87b6e8,
         walls: [], pits: [],
-        enemies: [ ['greenSlime',12,12], ['greenSlime',-14,10], ['redSlime',16,-12], ['blueSlime',-12,-16] ],
-        trees: [ [8,18],[-18,16],[20,4],[-20,-6],[6,-18],[-8,20],[18,-18],[-18,-18],[22,14],[-22,12] ],
-        // glowing CAVE portal into Dungeon 1 (north)
+        enemies: [
+          ['greenSlime',18,18], ['greenSlime',-25,12], ['redSlime',40,-20],
+          ['blueSlime',-30,-35], ['greenSlime',55,30], ['redSlime',-55,40], ['ogre',30,55]
+        ],
+        trees: [
+          [20,40],[-30,30],[50,10],[-50,-10],[15,-40],[-20,55],[60,-30],[-60,-40],
+          [40,60],[-45,45],[70,20],[-70,15],[25,-60],[-25,-65],[80,-15],[-80,-25],
+          [10,75],[-15,80],[90,40],[-90,30],[35,-80],[-40,-85]
+        ],
         portals: [
-          { x:0, z:-22, to:'start', arriveX:0, arriveZ:0, color:0x66ff99, emissive:0x229955 },
-          // 5 side-region gateways (stone arches, "coming soon")
-          { x:-24, z:0,   comingSoon:true, name:'Forest' },
-          { x:24,  z:0,   comingSoon:true, name:'Desert' },
-          { x:0,   z:24,  comingSoon:true, name:'Snowpeak' },
-          { x:-16, z:-20, comingSoon:true, name:'Volcano' },
-          { x:16,  z:20,  comingSoon:true, name:'Swamp' }
+          { x:0, z:-25, to:'start', arriveX:0, arriveZ:0, color:0x66ff99, emissive:0x229955 }, // cave -> Dungeon 1
+          { x:75, z:0, to:'desert_field', arriveX:0, arriveZ:15, color:0xe0c060, emissive:0x886622 }, // -> Desert
+          { x:-75, z:0,   comingSoon:true, name:'Forest' },
+          { x:0,   z:75,  comingSoon:true, name:'Snowpeak' },
+          { x:-55, z:-60, comingSoon:true, name:'Volcano' },
+          { x:55,  z:60,  comingSoon:true, name:'Swamp' }
+        ],
+        keys:[], chests:[], treasures:[]
+      },
+
+      // ============ OVERWORLD: DESERT REGION ============
+      desert_field: {
+        label: 'Gerudo Sands - Desert Region',
+        outdoor: true, size: 120,
+        floorColor: 0xd8c081, wallColor: 0xb8a878, bg: 0xbcd0dc,
+        walls: [], pits: [],
+        enemies: [ ['redSlime',12,-10], ['redSlime',-15,8], ['ogre',22,18], ['redSlime',-25,-20] ],
+        cacti: [ [10,-5],[-12,6],[25,5],[-25,-5],[18,-22],[-20,-18],[32,-12],[-32,12],[42,8],[-42,-8],[15,30],[-18,28] ],
+        portals: [
+          { x:0, z:25, to:'mainland', arriveX:75, arriveZ:10, color:0xe0c060, emissive:0x886622 }, // back to fields
+          { x:0, z:-25, to:'des_entry', arriveX:0, arriveZ:0, color:0xffcc66, emissive:0x885500 }  // -> Desert Dungeon
         ],
         keys:[], chests:[], treasures:[]
       },
@@ -401,8 +460,7 @@
         doors:[{x:14,z:0,rot:Math.PI/2,to:'hall',arriveX:-10,arriveZ:0,locked:false},
                {x:0,z:14,rot:0,to:'crypt',arriveX:0,arriveZ:-10,locked:false}],
         stairs:[{x:-12,z:12,rot:0,to:'landing',arriveX:-8,arriveZ:8,dir:'up'}],
-        portals:[{x:12,z:12,to:'d2_entry',arriveX:-10,arriveZ:0,requiresClear:true},
-                 {x:-12,z:-12,to:'mainland',arriveX:0,arriveZ:-18,color:0x66ff99,emissive:0x229955}], // exit to overworld
+        portals:[{x:-12,z:-12,to:'mainland',arriveX:0,arriveZ:-18,color:0x66ff99,emissive:0x229955}],
         keys:[], chests:[[12,-12,'coin']], treasures:[]
       },
       hall: {
@@ -531,36 +589,39 @@
         doors:[{x:-14,z:0,rot:Math.PI/2,to:'spire',arriveX:10,arriveZ:0,locked:false}],
         keys:[], chests:[[10,10,'coin']], treasures:[]
       },
-      d2_entry: {
-        label: 'Dungeon 2 - Gatehouse',
-        floorColor:0x2a5a4a, wallColor:0x1f4438, ceilColor:0x163026, bg:0x05140f,
+
+      // ============ DESERT DUNGEON (bow + eyes, sandstone) ============
+      des_entry: {
+        label: 'Desert Dungeon - Gatehouse',
+        floorColor:0xc2a868, wallColor:0x9c7d4a, ceilColor:0x6e5630, bg:0x241a0e,
         walls:[], pits:[],
-        enemies:[['greenSlime',6,-6]],
-        doors:[{x:14,z:0,rot:Math.PI/2,to:'d2_hall',arriveX:-10,arriveZ:0,locked:false}],
-        portals:[{x:-12,z:-12,to:'start',arriveX:10,arriveZ:10}],
+        enemies:[['redSlime',6,-6]],
+        doors:[{x:14,z:0,rot:Math.PI/2,to:'des_hall',arriveX:-10,arriveZ:0,locked:false}],
+        portals:[{x:-12,z:-12,to:'desert_field',arriveX:0,arriveZ:-18,color:0xffcc66,emissive:0x885500}],
         keys:[], chests:[[8,0,'bow'],[10,8,'arrows']], arrows:[[0,8],[0,-8]], treasures:[]
       },
-      d2_hall: {
-        label: 'Dungeon 2 - Eye Hall',
-        floorColor:0x2a5a4a, wallColor:0x1f4438, ceilColor:0x163026, bg:0x05140f,
+      des_hall: {
+        label: 'Desert Dungeon - Eye Hall',
+        floorColor:0xc2a868, wallColor:0x9c7d4a, ceilColor:0x6e5630, bg:0x241a0e,
         walls:[[0,0,0.5,8]], pits:[],
         enemies:[['eye',9,6],['eye',9,-6]],
-        doors:[{x:-14,z:0,rot:Math.PI/2,to:'d2_entry',arriveX:10,arriveZ:0,locked:false},
-               {x:14,z:0,rot:Math.PI/2,to:'d2_boss',arriveX:-10,arriveZ:0,locked:false}],
+        doors:[{x:-14,z:0,rot:Math.PI/2,to:'des_entry',arriveX:10,arriveZ:0,locked:false},
+               {x:14,z:0,rot:Math.PI/2,to:'des_boss',arriveX:-10,arriveZ:0,locked:false}],
         keys:[], chests:[[-10,10,'arrows']], arrows:[[0,10],[0,-10]], treasures:[]
       },
-      d2_boss: {
-        label: 'Dungeon 2 - Eye King (FINAL)',
-        floorColor:0x2a5a4a, wallColor:0x1f4438, ceilColor:0x163026, bg:0x05140f,
+      des_boss: {
+        label: 'Desert Dungeon - Sand Eye King (FINAL)',
+        floorColor:0xc2a868, wallColor:0x9c7d4a, ceilColor:0x6e5630, bg:0x241a0e,
         walls:[], pits:[],
         enemies:[['eye',6,0,true]],
-        doors:[{x:-14,z:0,rot:Math.PI/2,to:'d2_hall',arriveX:10,arriveZ:0,locked:false}],
+        doors:[{x:-14,z:0,rot:Math.PI/2,to:'des_hall',arriveX:10,arriveZ:0,locked:false}],
         keys:[], chests:[[10,8,'arrows']], arrows:[[-10,-8]], treasures:[]
       }
     };
 
     // --- ROOM LOADING ---
     let currentRoomId = null;
+    let currentRoomSize = roomSize;
     let transitionCooldown = 0;
 
     function clearRoom() {
@@ -575,9 +636,10 @@
       for (const a of arrows) scene.remove(a);
       for (const sh of enemyShots) scene.remove(sh);
       for (const pp of props) scene.remove(pp);
+      for (const cl of clouds) scene.remove(cl);
       walls.length=0; pits.length=0; enemies.length=0; doors.length=0;
       stairsList.length=0; portals.length=0; items.length=0; chests.length=0;
-      arrows.length=0; enemyShots.length=0; props.length=0;
+      arrows.length=0; enemyShots.length=0; props.length=0; clouds.length=0;
     }
 
     function loadRoom(roomId, arriveX, arriveZ) {
@@ -585,10 +647,11 @@
       const room = ROOMS[roomId];
       currentRoomId = roomId;
 
-      const S = room.size || roomSize;                 // this room's size
-      floor.scale.set(S / roomSize, S / roomSize, 1);   // stretch the floor to fit
+      const S = room.size || roomSize;
+      currentRoomSize = S;
+      floor.scale.set(S / roomSize, S / roomSize, 1);
       ceiling.scale.set(S / roomSize, S / roomSize, 1);
-      ceiling.visible = !room.outdoor;                  // open sky outdoors
+      ceiling.visible = !room.outdoor;
 
       floor.material.color.setHex(room.floorColor !== undefined ? room.floorColor : 0x666666);
       wallMaterial.color.setHex(room.wallColor !== undefined ? room.wallColor : 0x554433);
@@ -596,15 +659,25 @@
       scene.background.setHex(room.bg !== undefined ? room.bg : 0x111111);
       roomLabelUI.textContent = room.label || '';
 
-      // boundary walls sized to the room
-      createWall(0, -S/2, S, 0.5);
-      createWall(0,  S/2, S, 0.5);
-      createWall(-S/2, 0, 0.5, S);
-      createWall( S/2, 0, 0.5, S);
+      const bh = room.outdoor ? 2.5 : wallHeight;
+      createWall(0, -S/2, S, 0.5, bh);
+      createWall(0,  S/2, S, 0.5, bh);
+      createWall(-S/2, 0, 0.5, S, bh);
+      createWall( S/2, 0, 0.5, S, bh);
 
       for (const w of room.walls) createWall(w[0], w[1], w[2], w[3]);
       for (const p of room.pits) createPit(p[0], p[1], p[2]);
       for (const t of (room.trees||[])) createTree(t[0], t[1]);
+      for (const c of (room.cacti||[])) createCactus(c[0], c[1]);
+
+      // scatter grass tufts across grass regions
+      if (room.grass) {
+        for (let i = 0; i < 70; i++) createGrass((Math.random()-0.5)*(S-10), (Math.random()-0.5)*(S-10));
+      }
+      // clouds for outdoor regions
+      if (room.outdoor) {
+        for (let i = 0; i < 14; i++) createCloud((Math.random()-0.5)*S, 24 + Math.random()*14, (Math.random()-0.5)*S);
+      }
 
       (room.enemies || []).forEach((e, idx) => {
         const id = roomId + ':enemy:' + idx;
@@ -620,7 +693,7 @@
         door.userData.id = id;
       });
       for (const s of (room.stairs||[])) createStairs(s);
-      (room.portals||[]).forEach((p) => { if (p.requiresClear && !dungeon1Clear) return; createPortal(p); });
+      (room.portals||[]).forEach((p) => createPortal(p));
       (room.keys || []).forEach((k, idx) => {
         const id = roomId + ':key:' + idx;
         if (progress.takenKeys.has(id)) return;
@@ -641,8 +714,9 @@
       knight.position.set(arriveX, spawnPoint.y, arriveZ);
       spawnPoint.x = arriveX; spawnPoint.z = arriveZ;
       transitionCooldown = 0.5;
-      if (roomId === 'd2_entry' && !hasBow) showMessage('Open the chest to claim the BOW!', 2.5);
-      if (roomId === 'mainland') showMessage('Main Region. Step into the green cave to enter Dungeon 1.', 3);
+      if (roomId === 'des_entry' && !hasBow) showMessage('Open the chest to claim the BOW!', 2.5);
+      if (roomId === 'mainland') showMessage('Main Region. Green cave (north) = Dungeon 1. East gate = the Desert.', 3.5);
+      if (roomId === 'desert_field') showMessage('Gerudo Sands. A dungeon lies to the south.', 3);
     }
 
     // --- KNIGHT STATE ---
@@ -693,8 +767,8 @@
         if (enemy.userData.isBoss) {
           progress.defeatedBosses.add(enemy.userData.id);
           const t = createPickup('treasure', enemy.position.x, enemy.position.z);
-          if (currentRoomId === 'crown') t.userData.final = true;
-          if (currentRoomId === 'd2_boss') t.userData.final2 = true;
+          if (currentRoomId === 'crown')   t.userData.final  = true;
+          if (currentRoomId === 'des_boss') t.userData.final2 = true;
           showMessage('The boss is defeated! It dropped the treasure!', 2.5);
         } else {
           const roll = Math.random();
@@ -758,7 +832,7 @@
     camera.position.set(0, knight.position.y + cameraHeight, cameraDistance);
     camera.lookAt(0, 1.6, 0);
 
-    // --- START (now begins in the overworld) ---
+    // --- START ---
     updateHearts(); updateKeysUI(); updateCoinsUI(); updateAmmoUI();
     loadRoom('mainland', 0, 0);
 
@@ -773,6 +847,11 @@
 
       for (const it of items) { it.rotation.y += 0.05; it.position.y = it.userData.baseY + Math.sin(Date.now()*0.004)*0.12; }
       for (const pr of portals) { if (!pr.userData.comingSoon) pr.rotation.y += 0.03; }
+
+      for (const c of clouds) {
+        c.position.x += c.userData.driftSpeed;
+        if (c.position.x > currentRoomSize/2 + 25) c.position.x = -currentRoomSize/2 - 25;
+      }
 
       // --- arrows ---
       for (let i = arrows.length - 1; i >= 0; i--) {
@@ -839,7 +918,7 @@
           const dx = knight.position.x - enemy.position.x;
           const dz = knight.position.z - enemy.position.z;
           const dist = Math.sqrt(dx*dx + dz*dz);
-          const inSight = dist <= enemy.userData.sightRange;   // SIGHT CHECK
+          const inSight = dist <= enemy.userData.sightRange;
 
           if (enemy.userData.ranged) {
             if (inSight) {
@@ -860,16 +939,15 @@
                 enemy.userData.shootTimer = 1.6 + Math.random()*1.0;
               }
             }
-            enemy.position.y = enemy.userData.baseY + Math.sin(Date.now()*0.005)*0.25; // always hover
+            enemy.position.y = enemy.userData.baseY + Math.sin(Date.now()*0.005)*0.25;
           } else {
-            if (inSight && dist > 0.5) {  // only chase when noticed
+            if (inSight && dist > 0.5) {
               const stepX = (dx/dist) * enemy.userData.speed;
               const stepZ = (dz/dist) * enemy.userData.speed;
               const r = enemy.userData.radius;
               if (!isPositionBlocked(enemy.position.x+stepX, enemy.position.z, r) && !isOverPit(enemy.position.x+stepX, enemy.position.z)) enemy.position.x += stepX;
               if (!isPositionBlocked(enemy.position.x, enemy.position.z+stepZ, r) && !isOverPit(enemy.position.x, enemy.position.z+stepZ)) enemy.position.z += stepZ;
             }
-            // out of sight -> idle (stand still)
           }
         }
 
@@ -962,8 +1040,8 @@
               knightHealth += 1; updateHearts(); showMessage('+1 heart!', 1.0);
             } else if (kind === 'treasure') {
               if (item.userData.id) progress.tookTreasure.add(item.userData.id);
-              if (item.userData.final) { dungeon1Clear = true; showMessage('\uD83C\uDFC6 Dungeon 1 cleared! A portal opened back in its Entrance.', 4); }
-              else if (item.userData.final2) showMessage('\uD83C\uDFC6 Dungeon 2 cleared! You beat the Eye King!', 4);
+              if (item.userData.final) showMessage('\uD83C\uDFC6 Dungeon 1 cleared!', 4);
+              else if (item.userData.final2) showMessage('\uD83C\uDFC6 Desert Dungeon cleared! You beat the Sand Eye King!', 4);
               else showMessage('\uD83C\uDFC6 You found the treasure!', 3);
             }
             scene.remove(item); items.splice(i, 1);
