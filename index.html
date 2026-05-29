@@ -15,56 +15,27 @@
       transition: opacity 0.4s ease;
       z-index: 100;
     }
-    #hearts {
-      position: fixed;
-      top: 12px; left: 14px;
-      font-size: 30px;
-      letter-spacing: 3px;
-      z-index: 50;
-      user-select: none;
-    }
-    #keys {
-      position: fixed;
-      top: 54px; left: 16px;
-      font-size: 22px;
-      color: #ffdd55;
-      font-family: sans-serif;
-      z-index: 50;
-      user-select: none;
-    }
-    #coins {
-      position: fixed;
-      top: 84px; left: 16px;
-      font-size: 22px;
-      color: #ffcc00;
-      font-family: sans-serif;
-      z-index: 50;
-      user-select: none;
-    }
-    #roomLabel {
-      position: fixed;
-      top: 12px; right: 16px;
-      font-size: 18px;
-      color: #cfd6e6;
-      font-family: sans-serif;
-      z-index: 50;
-      user-select: none;
-      text-align: right;
-    }
+    #hearts { position: fixed; top: 12px; left: 14px; font-size: 30px; letter-spacing: 3px; z-index: 50; user-select: none; }
+    #keys   { position: fixed; top: 54px; left: 16px; font-size: 22px; color: #ffdd55; font-family: sans-serif; z-index: 50; user-select: none; }
+    #coins  { position: fixed; top: 84px; left: 16px; font-size: 22px; color: #ffcc00; font-family: sans-serif; z-index: 50; user-select: none; }
+    #ammo   { position: fixed; top: 114px; left: 16px; font-size: 22px; color: #cde; font-family: sans-serif; z-index: 50; user-select: none; }
+    #roomLabel { position: fixed; top: 12px; right: 16px; font-size: 18px; color: #cfd6e6; font-family: sans-serif; z-index: 50; user-select: none; text-align: right; }
     #message {
-      position: fixed;
-      bottom: 40px; left: 50%;
-      transform: translateX(-50%);
-      font-family: sans-serif;
-      font-size: 22px;
-      color: #fff;
-      background: rgba(0,0,0,0.6);
-      padding: 10px 18px;
-      border-radius: 10px;
-      opacity: 0;
-      transition: opacity 0.3s ease;
-      pointer-events: none;
-      z-index: 60;
+      position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%);
+      font-family: sans-serif; font-size: 22px; color: #fff;
+      background: rgba(0,0,0,0.6); padding: 10px 18px; border-radius: 10px;
+      opacity: 0; transition: opacity 0.3s ease; pointer-events: none; z-index: 60;
+    }
+    /* a faint crosshair that only shows while aiming */
+    #crosshair {
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+      width: 26px; height: 26px; border: 2px solid rgba(255,255,255,0.85); border-radius: 50%;
+      box-shadow: 0 0 0 2px rgba(0,0,0,0.4); opacity: 0; transition: opacity 0.15s ease;
+      pointer-events: none; z-index: 60;
+    }
+    #crosshair::after {
+      content: ''; position: absolute; top: 50%; left: 50%; width: 4px; height: 4px;
+      background: #fff; border-radius: 50%; transform: translate(-50%,-50%);
     }
   </style>
 </head>
@@ -74,7 +45,9 @@
   <div id="hearts"></div>
   <div id="keys"></div>
   <div id="coins"></div>
+  <div id="ammo"></div>
   <div id="roomLabel"></div>
+  <div id="crosshair"></div>
   <div id="message"></div>
 
   <!-- Load the Three.js library -->
@@ -82,7 +55,7 @@
 
   <script>
     // =====================================================
-    // DUNGEON DELVER - Phase 12: 16 rooms / 4 floors, tall walls + ceilings
+    // DUNGEON DELVER - Phase 13: The Bow + Dungeon 2
     // =====================================================
 
     const scene = new THREE.Scene();
@@ -96,7 +69,7 @@
 
     const fadeOverlay = document.getElementById('fadeOverlay');
 
-    // --- LIGHTING --- (torch raised for the taller rooms)
+    // --- LIGHTING ---
     scene.add(new THREE.AmbientLight(0xffffff, 0.65));
     const torchLight = new THREE.PointLight(0xffaa55, 140, 60);
     torchLight.position.set(0, 6.5, 0);
@@ -105,7 +78,7 @@
     moonLight.position.set(5, 12, 5);
     scene.add(moonLight);
 
-    // --- FLOOR --- (recolored per room)
+    // --- FLOOR ---
     const roomSize = 30;
     const floor = new THREE.Mesh(
       new THREE.PlaneGeometry(roomSize, roomSize),
@@ -114,13 +87,13 @@
     floor.rotation.x = -Math.PI / 2;
     scene.add(floor);
 
-    // --- CEILING --- (NEW) a flat panel on top, facing down; recolored per room
-    const wallHeight = 7; // taller walls so the chase camera stays UNDER the ceiling
+    // --- CEILING ---
+    const wallHeight = 7;
     const ceiling = new THREE.Mesh(
       new THREE.PlaneGeometry(roomSize, roomSize),
       new THREE.MeshStandardMaterial({ color: 0x3a3a3a, side: THREE.DoubleSide })
     );
-    ceiling.rotation.x = Math.PI / 2; // flip so its lit face points DOWN into the room
+    ceiling.rotation.x = Math.PI / 2;
     ceiling.position.y = wallHeight;
     scene.add(ceiling);
 
@@ -129,8 +102,8 @@
     const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x554433 });
 
     function createWall(x, z, width, depth) {
-      // Make every wall at least this thick so the camera can't peek past thin walls
-      const minThickness = 1.5;
+      // every wall at least this thick (1.3 keeps stairs walkable)
+      const minThickness = 1.3;
       if (width < minThickness) width = minThickness;
       if (depth < minThickness) depth = minThickness;
       const wall = new THREE.Mesh(new THREE.BoxGeometry(width, wallHeight, depth), wallMaterial);
@@ -147,15 +120,13 @@
     // --- PITS ---
     const pits = [];
     function createPit(x, z, size) {
-      const pitGeometry = new THREE.PlaneGeometry(size, size);
-      const pitMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
-      const pit = new THREE.Mesh(pitGeometry, pitMaterial);
+      const pit = new THREE.Mesh(
+        new THREE.PlaneGeometry(size, size),
+        new THREE.MeshBasicMaterial({ color: 0x000000 })
+      );
       pit.rotation.x = -Math.PI / 2;
       pit.position.set(x, 0.01, z);
-      pit.userData = {
-        minX: x - size / 2, maxX: x + size / 2,
-        minZ: z - size / 2, maxZ: z + size / 2
-      };
+      pit.userData = { minX:x-size/2, maxX:x+size/2, minZ:z-size/2, maxZ:z+size/2 };
       scene.add(pit);
       pits.push(pit);
       return pit;
@@ -196,11 +167,15 @@
     knight.add(sword);
 
     // --- ENEMY TYPES ---
+    // ranged:true       -> keeps its distance and shoots projectiles
+    // meleeImmune:true  -> sword does NOTHING; you MUST use the bow
     const ENEMY_TYPES = {
       greenSlime: { color: 0x44dd44, health: 5, speed: 0.05625, radius: 0.6,  damage: 1, shape: 'slime' },
       redSlime:   { color: 0xff5533, health: 3, speed: 0.09,    radius: 0.55, damage: 1, shape: 'slime' },
       blueSlime:  { color: 0x55ccff, health: 6, speed: 0.035,   radius: 0.65, damage: 1, shape: 'slime' },
       ogre:       { color: 0x998877, health: 8, speed: 0.045,   radius: 0.9,  damage: 2, shape: 'ogre'  },
+      eye:        { color: 0xaa55cc, health: 4, speed: 0.03,    radius: 0.5,  damage: 1, shape: 'eye',
+                    ranged: true, meleeImmune: true, standoff: 7 },
     };
 
     // --- ENEMIES ---
@@ -211,6 +186,9 @@
       if (type.shape === 'ogre') {
         geometry = new THREE.BoxGeometry(1.6, 2.4, 1.6);
         baseY = 1.2;
+      } else if (type.shape === 'eye') {
+        geometry = new THREE.SphereGeometry(type.radius, 14, 10);
+        baseY = 1.9; // hovers in the air
       } else {
         geometry = new THREE.SphereGeometry(type.radius, 12, 8);
         baseY = type.radius;
@@ -220,13 +198,26 @@
         new THREE.MeshStandardMaterial({ color: type.color, roughness: 0.4 })
       );
       enemy.position.set(x, baseY, z);
+
+      // give the eye a little black pupil so it reads as an eyeball
+      if (type.shape === 'eye') {
+        const pupil = new THREE.Mesh(
+          new THREE.SphereGeometry(type.radius * 0.45, 10, 8),
+          new THREE.MeshStandardMaterial({ color: 0x110011 })
+        );
+        pupil.position.set(0, 0, -type.radius * 0.7);
+        enemy.add(pupil);
+      }
+
       enemy.userData = {
         type: typeName,
         health: type.health, isAlive: true, isDying: false, deathTimer: 0,
         hitFlashTimer: 0, normalColor: type.color,
         knockbackX: 0, knockbackZ: 0, knockbackTimer: 0,
         radius: type.radius, speed: type.speed, damage: type.damage, baseY: baseY,
-        isBoss: false, id: null
+        isBoss: false, id: null,
+        ranged: !!type.ranged, meleeImmune: !!type.meleeImmune,
+        standoff: type.standoff || 7, shootTimer: 1 + Math.random() * 1.5
       };
       if (isBoss) {
         enemy.userData.isBoss = true;
@@ -262,7 +253,7 @@
     function createDoor(d) {
       const color = d.locked ? 0xffcc33 : 0x7a4a1e;
       const door = new THREE.Mesh(
-        new THREE.BoxGeometry(2, 3.2, 0.4), // a bit taller to fit the taller walls
+        new THREE.BoxGeometry(2, 3.2, 0.4),
         new THREE.MeshStandardMaterial({ color: color })
       );
       door.position.set(d.x, 1.6, d.z);
@@ -273,7 +264,7 @@
       return door;
     }
 
-    // --- STAIRS --- a connector that changes FLOORS
+    // --- STAIRS ---
     const stairsList = [];
     function createStairs(s) {
       const group = new THREE.Group();
@@ -292,38 +283,49 @@
       return group;
     }
 
-    // --- PICKUPS (key / heart / coin / treasure) ---
+    // --- PORTALS --- (NEW) glowing pad that travels to another dungeon
+    const portals = [];
+    function createPortal(p) {
+      const pad = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.3, 1.3, 0.25, 24),
+        new THREE.MeshStandardMaterial({ color: 0x66ddff, emissive: 0x2299cc, emissiveIntensity: 0.8 })
+      );
+      pad.position.set(p.x, 0.13, p.z);
+      pad.userData = { to: p.to, arriveX: p.arriveX, arriveZ: p.arriveZ };
+      scene.add(pad);
+      portals.push(pad);
+      return pad;
+    }
+
+    // --- PICKUPS (key / heart / coin / treasure / arrow) ---
     const items = [];
     function createPickup(kind, x, z) {
       let mesh, baseY;
       if (kind === 'key') {
-        mesh = new THREE.Mesh(
-          new THREE.TorusGeometry(0.25, 0.09, 8, 16),
-          new THREE.MeshStandardMaterial({ color: 0xffdd33, metalness: 0.6, roughness: 0.3 })
-        );
+        mesh = new THREE.Mesh(new THREE.TorusGeometry(0.25, 0.09, 8, 16),
+          new THREE.MeshStandardMaterial({ color: 0xffdd33, metalness: 0.6, roughness: 0.3 }));
         baseY = 0.8;
       } else if (kind === 'heart') {
-        mesh = new THREE.Mesh(
-          new THREE.SphereGeometry(0.28, 12, 10),
-          new THREE.MeshStandardMaterial({ color: 0xff3355, roughness: 0.4 })
-        );
+        mesh = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 10),
+          new THREE.MeshStandardMaterial({ color: 0xff3355, roughness: 0.4 }));
         baseY = 0.7;
       } else if (kind === 'coin') {
-        mesh = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.28, 0.28, 0.07, 16),
-          new THREE.MeshStandardMaterial({ color: 0xffcc00, metalness: 0.7, roughness: 0.3 })
-        );
+        mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.07, 16),
+          new THREE.MeshStandardMaterial({ color: 0xffcc00, metalness: 0.7, roughness: 0.3 }));
         mesh.rotation.x = Math.PI / 2;
         baseY = 0.7;
+      } else if (kind === 'arrow') {
+        mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.8, 8),
+          new THREE.MeshStandardMaterial({ color: 0xddaa55, roughness: 0.5 }));
+        mesh.rotation.z = Math.PI / 2; // lie flat
+        baseY = 0.6;
       } else { // 'treasure'
-        mesh = new THREE.Mesh(
-          new THREE.BoxGeometry(0.8, 0.8, 0.8),
-          new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.7, roughness: 0.25 })
-        );
+        mesh = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8),
+          new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.7, roughness: 0.25 }));
         baseY = 0.9;
       }
       mesh.position.set(x, baseY, z);
-      mesh.userData = { kind: kind, baseY: baseY, id: null };
+      mesh.userData = { kind: kind, baseY: baseY, id: null, final: false, final2: false };
       scene.add(mesh);
       items.push(mesh);
       return mesh;
@@ -334,10 +336,7 @@
     function createChest(x, z, reward, opened) {
       const chest = new THREE.Mesh(
         new THREE.BoxGeometry(0.9, 0.7, 0.7),
-        new THREE.MeshStandardMaterial({
-          color: opened ? 0x4a3520 : 0x9a6a2a,
-          roughness: 0.6, metalness: 0.2
-        })
+        new THREE.MeshStandardMaterial({ color: opened ? 0x4a3520 : 0x9a6a2a, roughness: 0.6, metalness: 0.2 })
       );
       chest.position.set(x, 0.35, z);
       chest.userData = { reward: reward, opened: opened, id: null };
@@ -346,24 +345,61 @@
       return chest;
     }
 
+    // --- ARROWS (player projectiles) --- (NEW)
+    const arrows = [];
+    const arrowSpeed = 0.55, arrowDamage = 2;
+    function spawnArrow(dirX, dirZ) {
+      const a = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.05, 0.05, 0.8, 6),
+        new THREE.MeshStandardMaterial({ color: 0xffeeaa, roughness: 0.4 })
+      );
+      a.position.set(knight.position.x + dirX * 0.6, 0.9, knight.position.z + dirZ * 0.6);
+      a.rotation.x = Math.PI / 2;          // point the cylinder forward
+      a.rotation.z = -knight.rotation.y;   // aim it the way the knight faces
+      a.userData = { vx: dirX * arrowSpeed, vz: dirZ * arrowSpeed, life: 160 };
+      scene.add(a);
+      arrows.push(a);
+    }
+
+    // --- ENEMY SHOTS (eye projectiles) --- (NEW)
+    const enemyShots = [];
+    const shotSpeed = 0.22;
+    function spawnEnemyShot(x, y, z, tx, tz) {
+      const dx = tx - x, dz = tz - z;
+      const len = Math.sqrt(dx * dx + dz * dz) || 1;
+      const s = new THREE.Mesh(
+        new THREE.SphereGeometry(0.22, 8, 8),
+        new THREE.MeshStandardMaterial({ color: 0xff66dd, emissive: 0x660044, emissiveIntensity: 0.6 })
+      );
+      s.position.set(x, y, z);
+      s.userData = { vx: (dx / len) * shotSpeed, vz: (dz / len) * shotSpeed, life: 200 };
+      scene.add(s);
+      enemyShots.push(s);
+    }
+
     // --- INVENTORY + UI ---
     let playerKeys = 0;
     let playerCoins = 0;
+    let hasBow = false;
+    let playerArrows = 0;
     const keysUI = document.getElementById('keys');
     const coinsUI = document.getElementById('coins');
+    const ammoUI = document.getElementById('ammo');
     const roomLabelUI = document.getElementById('roomLabel');
     const messageUI = document.getElementById('message');
+    const crosshairUI = document.getElementById('crosshair');
     let messageTimer = 0;
 
     function updateKeysUI()  { keysUI.textContent  = (playerKeys  > 0) ? ('\uD83D\uDD11 x ' + playerKeys)  : ''; }
     function updateCoinsUI() { coinsUI.textContent = ('\uD83E\uDE99 ' + playerCoins); }
+    function updateAmmoUI()  { ammoUI.textContent  = hasBow ? ('\uD83C\uDFF9 ' + playerArrows + (aiming ? '   \uD83C\uDFAF AIM' : '')) : ''; }
     function showMessage(text, seconds) {
       messageUI.textContent = text;
       messageUI.style.opacity = '1';
       messageTimer = seconds;
     }
 
-    // --- PROGRESS TRACKER --- (normal enemies are NOT tracked; they respawn)
+    // --- PROGRESS TRACKER ---
     const progress = {
       defeatedBosses: new Set(),
       takenKeys:      new Set(),
@@ -371,11 +407,11 @@
       unlockedDoors:  new Set(),
       openedChests:   new Set()
     };
+    let dungeon1Clear = false; // unlocks the portal to Dungeon 2
 
     // --- ROOMS ---
-    // 5 locked doors total; 5 keys total (1 floor key + 4 key-chests) -> every key gets used.
     const ROOMS = {
-      // ============ FLOOR 1 (gray stone) ============
+      // ============ DUNGEON 1, FLOOR 1 (gray) ============
       start: {
         label: 'Floor 1 - Entrance',
         walls:   [ [-5,-5,8,0.5], [5,5,0.5,8], [-8,6,0.5,6], [8,-6,6,0.5] ],
@@ -386,6 +422,7 @@
           { x:0,  z:14, rot:0,         to:'crypt', arriveX:0,   arriveZ:-10, locked:false }
         ],
         stairs:  [ { x:-12, z:12, rot:0, to:'landing', arriveX:-8, arriveZ:8, dir:'up' } ],
+        portals: [ { x:12, z:12, to:'d2_entry', arriveX:-10, arriveZ:0, requiresClear:true } ],
         keys:    [],
         chests:  [ [12,-12,'coin'] ],
         treasures: []
@@ -423,13 +460,13 @@
         enemies: [ ['ogre',8,-8], ['blueSlime',0,8] ],
         doors:   [
           { x:-14, z:0, rot:Math.PI/2, to:'crypt',  arriveX:10, arriveZ:0,  locked:false },
-          { x:0,  z:14, rot:0,         to:'ossuary', arriveX:0, arriveZ:-10, locked:true } // NEW locked door
+          { x:0,  z:14, rot:0,         to:'ossuary', arriveX:0, arriveZ:-10, locked:true }
         ],
         keys:    [],
         chests:  [ [10,10,'heart'] ],
         treasures: []
       },
-      ossuary: { // NEW room (Floor 1, behind a locked door)
+      ossuary: {
         label: 'Floor 1 - Ossuary',
         walls:   [ [0,2,10,0.5] ],
         pits:    [ [8,8,2] ],
@@ -441,148 +478,148 @@
       },
       treasure: {
         label: 'Floor 1 - Boss Vault',
-        walls:   [],
-        pits:    [],
+        walls:   [], pits: [],
         enemies: [ ['ogre', 4, 0, true] ],
         doors:   [ { x:-14, z:0, rot:Math.PI/2, to:'hall', arriveX:10, arriveZ:0, locked:false } ],
-        keys:    [],
-        chests:  [ [10,10,'coin'] ],
-        treasures: []
+        keys:    [], chests: [ [10,10,'coin'] ], treasures: []
       },
 
-      // ============ FLOOR 2 (cool blue stone) ============
+      // ============ DUNGEON 1, FLOOR 2 (blue) ============
       landing: {
         label: 'Floor 2 - Landing',
         floorColor: 0x4a5a7a, wallColor: 0x3a4a6a, ceilColor: 0x2a3552, bg: 0x0a0a1f,
-        walls:   [ [0,-2,10,0.5] ],
-        pits:    [],
+        walls:   [ [0,-2,10,0.5] ], pits: [],
         enemies: [ ['redSlime',8,8], ['blueSlime',-8,-2] ],
         doors:   [
           { x:14, z:0,   rot:Math.PI/2, to:'loft',  arriveX:-10, arriveZ:0,  locked:false },
           { x:0,  z:-14, rot:0,         to:'tower', arriveX:0,   arriveZ:10, locked:false }
         ],
         stairs:  [ { x:-12, z:12, rot:0, to:'start', arriveX:-9, arriveZ:9, dir:'down' } ],
-        keys:    [],
-        chests:  [ [12,-12,'coin'] ],
-        treasures: []
+        keys:    [], chests: [ [12,-12,'coin'] ], treasures: []
       },
       loft: {
         label: 'Floor 2 - Loft',
         floorColor: 0x4a5a7a, wallColor: 0x3a4a6a, ceilColor: 0x2a3552, bg: 0x0a0a1f,
-        walls:   [ [0,6,0.5,8] ],
-        pits:    [ [-8,-8,2.5] ],
+        walls:   [ [0,6,0.5,8] ], pits: [ [-8,-8,2.5] ],
         enemies: [ ['ogre',4,-6], ['blueSlime',-6,6] ],
         doors:   [
           { x:-14, z:0, rot:Math.PI/2, to:'landing', arriveX:10,  arriveZ:0, locked:false },
           { x:14,  z:0, rot:Math.PI/2, to:'vault',   arriveX:-10, arriveZ:0, locked:true  }
         ],
-        keys:    [],
-        chests:  [ [8,8,'key'] ],
-        treasures: []
+        keys:    [], chests: [ [8,8,'key'] ], treasures: []
       },
       tower: {
         label: 'Floor 2 - Tower',
         floorColor: 0x4a5a7a, wallColor: 0x3a4a6a, ceilColor: 0x2a3552, bg: 0x0a0a1f,
-        walls:   [],
-        pits:    [],
+        walls:   [], pits: [],
         enemies: [ ['redSlime',-8,8], ['greenSlime',-8,-2] ],
         doors:   [
           { x:0,  z:14, rot:0,         to:'landing', arriveX:0,  arriveZ:-10, locked:false },
-          { x:14, z:0,  rot:Math.PI/2, to:'gallery', arriveX:-10, arriveZ:0,  locked:true } // NEW locked door
+          { x:14, z:0,  rot:Math.PI/2, to:'gallery', arriveX:-10, arriveZ:0,  locked:true }
         ],
         stairs:  [ { x:12, z:-12, rot:0, to:'attic', arriveX:-9, arriveZ:9, dir:'up' } ],
-        keys:    [],
-        chests:  [ [-10,10,'heart'], [-10,-10,'key'] ], // key-chest for the NEW locked door
-        treasures: []
+        keys:    [], chests: [ [-10,10,'heart'], [-10,-10,'key'] ], treasures: []
       },
-      gallery: { // NEW room (Floor 2, behind the new locked door)
+      gallery: {
         label: 'Floor 2 - Gallery',
         floorColor: 0x4a5a7a, wallColor: 0x3a4a6a, ceilColor: 0x2a3552, bg: 0x0a0a1f,
-        walls:   [ [-4,0,0.5,12], [4,0,0.5,12] ],
-        pits:    [],
+        walls:   [ [-4,0,0.5,12], [4,0,0.5,12] ], pits: [],
         enemies: [ ['blueSlime',0,8], ['redSlime',0,-8] ],
         doors:   [ { x:-14, z:0, rot:Math.PI/2, to:'tower', arriveX:10, arriveZ:0, locked:false } ],
-        keys:    [],
-        chests:  [ [0,11,'coin'], [0,-11,'heart'] ],
-        treasures: []
+        keys:    [], chests: [ [0,11,'coin'], [0,-11,'heart'] ], treasures: []
       },
       vault: {
         label: 'Floor 2 - Vault',
         floorColor: 0x4a5a7a, wallColor: 0x3a4a6a, ceilColor: 0x2a3552, bg: 0x0a0a1f,
-        walls:   [],
-        pits:    [ [0,-8,2] ],
+        walls:   [], pits: [ [0,-8,2] ],
         enemies: [ ['ogre',5,0] ],
         doors:   [ { x:-14, z:0, rot:Math.PI/2, to:'loft', arriveX:10, arriveZ:0, locked:false } ],
-        keys:    [],
-        chests:  [ [10,10,'coin'] ], // was a spare key -> now coins (no longer needed as a key)
-        treasures: []
+        keys:    [], chests: [ [10,10,'coin'] ], treasures: []
       },
 
-      // ============ FLOOR 3 (dark purple) ============
+      // ============ DUNGEON 1, FLOOR 3 (purple) ============
       attic: {
         label: 'Floor 3 - Attic',
         floorColor: 0x5a3a5a, wallColor: 0x4a2a4a, ceilColor: 0x36203a, bg: 0x150a15,
-        walls:   [],
-        pits:    [ [0,0,2.5] ],
+        walls:   [], pits: [ [0,0,2.5] ],
         enemies: [ ['redSlime',8,8], ['greenSlime',0,-8] ],
         doors:   [
-          { x:14, z:0,  rot:Math.PI/2, to:'sanctum',  arriveX:-10, arriveZ:0,   locked:true },
-          { x:0,  z:14, rot:0,         to:'reliquary', arriveX:0,  arriveZ:-10, locked:false } // -> stairs up to F4
+          { x:14, z:0,  rot:Math.PI/2, to:'sanctum',   arriveX:-10, arriveZ:0,   locked:true },
+          { x:0,  z:14, rot:0,         to:'reliquary', arriveX:0,   arriveZ:-10, locked:false }
         ],
         stairs:  [ { x:12, z:-12, rot:0, to:'tower', arriveX:10, arriveZ:-10, dir:'down' } ],
-        keys:    [],
-        chests:  [ [8,-8,'key'] ],
-        treasures: []
+        keys:    [], chests: [ [8,-8,'key'] ], treasures: []
       },
-      reliquary: { // NEW room (Floor 3) -> holds the stairs up to Floor 4
+      reliquary: {
         label: 'Floor 3 - Reliquary',
         floorColor: 0x5a3a5a, wallColor: 0x4a2a4a, ceilColor: 0x36203a, bg: 0x150a15,
-        walls:   [ [0,4,8,0.5] ],
-        pits:    [ [-8,-8,2] ],
+        walls:   [ [0,4,8,0.5] ], pits: [ [-8,-8,2] ],
         enemies: [ ['blueSlime',8,-8], ['redSlime',-8,4] ],
         doors:   [ { x:0, z:-14, rot:0, to:'attic', arriveX:0, arriveZ:10, locked:false } ],
         stairs:  [ { x:12, z:12, rot:0, to:'spire', arriveX:-9, arriveZ:-9, dir:'up' } ],
-        keys:    [],
-        chests:  [ [10,10,'key'] ], // key-chest for Floor 4's locked sanctum door
-        treasures: []
+        keys:    [], chests: [ [10,10,'key'] ], treasures: []
       },
       sanctum: {
         label: 'Floor 3 - Sanctum (Boss)',
         floorColor: 0x5a3a5a, wallColor: 0x4a2a4a, ceilColor: 0x36203a, bg: 0x150a15,
-        walls:   [],
-        pits:    [],
+        walls:   [], pits: [],
         enemies: [ ['ogre', 4, 0, true] ],
         doors:   [ { x:-14, z:0, rot:Math.PI/2, to:'attic', arriveX:10, arriveZ:0, locked:false } ],
-        keys:    [],
-        chests:  [ [10,10,'coin'] ],
-        treasures: []
+        keys:    [], chests: [ [10,10,'coin'] ], treasures: []
       },
 
-      // ============ FLOOR 4 (golden, NEW top floor) ============
-      spire: { // NEW room (Floor 4)
+      // ============ DUNGEON 1, FLOOR 4 (gold) ============
+      spire: {
         label: 'Floor 4 - Spire',
         floorColor: 0x6a5a2a, wallColor: 0x5a4a1a, ceilColor: 0x40340f, bg: 0x1a1505,
-        walls:   [ [0,0,0.5,14] ],
-        pits:    [ [-9,9,2], [9,-9,2] ],
+        walls:   [ [0,0,0.5,14] ], pits: [ [-9,9,2], [9,-9,2] ],
         enemies: [ ['redSlime',-8,-8], ['blueSlime',8,8], ['ogre',8,-4] ],
         doors:   [
           { x:0,  z:14, rot:0,         to:'reliquary', arriveX:0,  arriveZ:-10, locked:false },
-          { x:14, z:0,  rot:Math.PI/2, to:'crown',     arriveX:-10, arriveZ:0,  locked:true } // FINAL locked door
+          { x:14, z:0,  rot:Math.PI/2, to:'crown',     arriveX:-10, arriveZ:0,  locked:true }
         ],
-        keys:    [],
-        chests:  [ [-10,10,'key'], [10,10,'heart'] ], // key-chest for the FINAL door
-        treasures: []
+        keys:    [], chests: [ [-10,10,'key'], [10,10,'heart'] ], treasures: []
       },
-      crown: { // NEW room (Floor 4) - the FINAL boss + grand prize
+      crown: {
         label: 'Floor 4 - Crown (FINAL)',
         floorColor: 0x6a5a2a, wallColor: 0x5a4a1a, ceilColor: 0x40340f, bg: 0x1a1505,
-        walls:   [],
-        pits:    [],
+        walls:   [], pits: [],
         enemies: [ ['ogre', 4, 0, true] ],
         doors:   [ { x:-14, z:0, rot:Math.PI/2, to:'spire', arriveX:10, arriveZ:0, locked:false } ],
+        keys:    [], chests: [ [10,10,'coin'] ], treasures: []
+      },
+
+      // ============ DUNGEON 2 (teal cavern) -- needs the BOW ============
+      d2_entry: {
+        label: 'Dungeon 2 - Gatehouse',
+        floorColor: 0x2a5a4a, wallColor: 0x1f4438, ceilColor: 0x163026, bg: 0x05140f,
+        walls:   [], pits: [],
+        enemies: [ ['greenSlime',6,-6] ],
+        doors:   [ { x:14, z:0, rot:Math.PI/2, to:'d2_hall', arriveX:-10, arriveZ:0, locked:false } ],
+        portals: [ { x:-12, z:-12, to:'start', arriveX:10, arriveZ:10 } ], // way back
         keys:    [],
-        chests:  [ [10,10,'coin'] ],
+        chests:  [ [8,0,'bow'], [10,8,'arrows'] ],
+        arrows:  [ [0,8], [0,-8] ],   // floor arrow pickups (+5 each)
         treasures: []
+      },
+      d2_hall: {
+        label: 'Dungeon 2 - Eye Hall',
+        floorColor: 0x2a5a4a, wallColor: 0x1f4438, ceilColor: 0x163026, bg: 0x05140f,
+        walls:   [ [0,0,0.5,8] ], pits: [],
+        enemies: [ ['eye',9,6], ['eye',9,-6] ],   // float + shoot back; bow only!
+        doors:   [
+          { x:-14, z:0, rot:Math.PI/2, to:'d2_entry', arriveX:10,  arriveZ:0, locked:false },
+          { x:14,  z:0, rot:Math.PI/2, to:'d2_boss',  arriveX:-10, arriveZ:0, locked:false }
+        ],
+        keys:    [], chests: [ [-10,10,'arrows'] ], arrows: [ [0,10], [0,-10] ], treasures: []
+      },
+      d2_boss: {
+        label: 'Dungeon 2 - Eye King (FINAL)',
+        floorColor: 0x2a5a4a, wallColor: 0x1f4438, ceilColor: 0x163026, bg: 0x05140f,
+        walls:   [], pits: [],
+        enemies: [ ['eye', 6, 0, true] ],   // boss eye: tough, ranged, melee-immune
+        doors:   [ { x:-14, z:0, rot:Math.PI/2, to:'d2_hall', arriveX:10, arriveZ:0, locked:false } ],
+        keys:    [], chests: [ [10,8,'arrows'] ], arrows: [ [-10,-8] ], treasures: []
       }
     };
 
@@ -596,10 +633,14 @@
       for (const e of enemies)    scene.remove(e);
       for (const d of doors)      scene.remove(d);
       for (const s of stairsList) scene.remove(s);
+      for (const pr of portals)   scene.remove(pr);
       for (const it of items)     scene.remove(it);
       for (const c of chests)     scene.remove(c);
-      walls.length = 0; pits.length = 0; enemies.length = 0;
-      doors.length = 0; stairsList.length = 0; items.length = 0; chests.length = 0;
+      for (const a of arrows)     scene.remove(a);
+      for (const sh of enemyShots) scene.remove(sh);
+      walls.length=0; pits.length=0; enemies.length=0; doors.length=0;
+      stairsList.length=0; portals.length=0; items.length=0; chests.length=0;
+      arrows.length=0; enemyShots.length=0;
     }
 
     function loadRoom(roomId, arriveX, arriveZ) {
@@ -607,7 +648,6 @@
       const room = ROOMS[roomId];
       currentRoomId = roomId;
 
-      // theme the floor / walls / ceiling / sky
       floor.material.color.setHex(room.floorColor !== undefined ? room.floorColor : 0x666666);
       wallMaterial.color.setHex(room.wallColor   !== undefined ? room.wallColor   : 0x554433);
       ceiling.material.color.setHex(room.ceilColor !== undefined ? room.ceilColor : 0x3a3a3a);
@@ -633,14 +673,16 @@
       room.doors.forEach((d, idx) => {
         const id = roomId + ':door:' + idx;
         const lockedNow = d.locked && !progress.unlockedDoors.has(id);
-        const door = createDoor({
-          x: d.x, z: d.z, rot: d.rot, to: d.to,
-          arriveX: d.arriveX, arriveZ: d.arriveZ, locked: lockedNow
-        });
+        const door = createDoor({ x:d.x, z:d.z, rot:d.rot, to:d.to, arriveX:d.arriveX, arriveZ:d.arriveZ, locked:lockedNow });
         door.userData.id = id;
       });
 
       for (const s of (room.stairs||[])) createStairs(s);
+
+      (room.portals||[]).forEach((p) => {
+        if (p.requiresClear && !dungeon1Clear) return; // hidden until Dungeon 1 is cleared
+        createPortal(p);
+      });
 
       room.keys.forEach((k, idx) => {
         const id = roomId + ':key:' + idx;
@@ -648,6 +690,8 @@
         const item = createPickup('key', k[0], k[1]);
         item.userData.id = id;
       });
+
+      (room.arrows||[]).forEach((aPos) => createPickup('arrow', aPos[0], aPos[1]));
 
       (room.chests||[]).forEach((c, idx) => {
         const id = roomId + ':chest:' + idx;
@@ -667,6 +711,9 @@
       spawnPoint.x = arriveX;
       spawnPoint.z = arriveZ;
       transitionCooldown = 0.5;
+
+      // helpful hints in Dungeon 2
+      if (roomId === 'd2_entry' && !hasBow) showMessage('Open the chest to claim the BOW!', 2.5);
     }
 
     // --- KNIGHT STATE MACHINE ---
@@ -685,9 +732,7 @@
       knight.visible = true;
       fadeOverlay.style.opacity = '1';
       setTimeout(() => {
-        knight.position.x = spawnPoint.x;
-        knight.position.y = spawnPoint.y;
-        knight.position.z = spawnPoint.z;
+        knight.position.set(spawnPoint.x, spawnPoint.y, spawnPoint.z);
         knight.rotation.set(0, 0, 0);
         knight.scale.set(1, 1, 1);
         knight.visible = true;
@@ -709,9 +754,7 @@
 
     function updateHearts() {
       let display = '';
-      for (let i = 0; i < maxHearts; i++) {
-        display += (i < knightHealth) ? '\u2764\uFE0F' : '\uD83E\uDD0D';
-      }
+      for (let i = 0; i < maxHearts; i++) display += (i < knightHealth) ? '\u2764\uFE0F' : '\uD83E\uDD0D';
       heartsUI.textContent = display;
     }
 
@@ -724,6 +767,34 @@
       if (knightHealth <= 0) respawnKnight();
     }
 
+    // --- SHARED DAMAGE/DEATH HELPER --- (used by sword AND arrows)
+    function damageEnemy(enemy, amount, srcX, srcZ) {
+      enemy.userData.health -= amount;
+      enemy.userData.hitFlashTimer = 0.15;
+      enemy.material.color.setHex(0xffffff);
+      const kx = enemy.position.x - srcX, kz = enemy.position.z - srcZ;
+      const kl = Math.sqrt(kx * kx + kz * kz) || 1;
+      enemy.userData.knockbackX = (kx / kl) * 0.3;
+      enemy.userData.knockbackZ = (kz / kl) * 0.3;
+      enemy.userData.knockbackTimer = 0.2;
+      if (enemy.userData.health <= 0) {
+        enemy.userData.isAlive = false;
+        enemy.userData.isDying = true;
+        enemy.userData.deathTimer = 0;
+        if (enemy.userData.isBoss) {
+          progress.defeatedBosses.add(enemy.userData.id);
+          const t = createPickup('treasure', enemy.position.x, enemy.position.z);
+          if (currentRoomId === 'crown')   t.userData.final  = true;  // unlocks Dungeon 2
+          if (currentRoomId === 'd2_boss') t.userData.final2 = true;
+          showMessage('The boss is defeated! It dropped the treasure!', 2.5);
+        } else {
+          const roll = Math.random();
+          if (roll < 0.25)      createPickup('heart', enemy.position.x, enemy.position.z);
+          else if (roll < 0.55) createPickup('coin',  enemy.position.x, enemy.position.z);
+        }
+      }
+    }
+
     // --- COMBAT STATE --- (your tuning kept)
     let isSwinging = false, swingTimer = 0, hasHitThisSwing = false, cooldownTimer = 0;
     const swingDuration = 0.08, swingCooldown = 0.0001, hitRange = 2, swordDamage = 1;
@@ -731,10 +802,26 @@
     function startSwing() {
       if (knightState !== 'alive') return;
       if (isSwinging || cooldownTimer > 0) return;
-      isSwinging = true;
-      swingTimer = 0;
-      hasHitThisSwing = false;
+      isSwinging = true; swingTimer = 0; hasHitThisSwing = false;
     }
+
+    // --- BOW SHOOTING ---
+    let arrowCooldown = 0;
+    function shootArrow() {
+      if (knightState !== 'alive') return;
+      if (!hasBow) { showMessage('You need the bow first!', 1.2); return; }
+      if (playerArrows <= 0) { showMessage('Out of arrows!', 1.2); return; }
+      if (arrowCooldown > 0) return;
+      const dirX = -Math.sin(knight.rotation.y); // knight's forward direction
+      const dirZ = -Math.cos(knight.rotation.y);
+      spawnArrow(dirX, dirZ);
+      playerArrows -= 1;
+      updateAmmoUI();
+      arrowCooldown = 0.25;
+    }
+
+    // --- AIM MODE (toggle) ---
+    let aiming = false;
 
     // --- KEYBOARD ---
     const keys = { up: false, down: false, left: false, right: false };
@@ -745,6 +832,13 @@
       if (key === 'ArrowLeft' || key === 'a' || key === 'A') keys.left = isPressed;
       if (key === 'ArrowRight' || key === 'd' || key === 'D') keys.right = isPressed;
       if (key === ' ' && isPressed && !event.repeat) startSwing();
+      if (key === '/' && isPressed && !event.repeat) { event.preventDefault(); shootArrow(); }
+      if (key === '.' && isPressed && !event.repeat) {
+        event.preventDefault();
+        aiming = !aiming;
+        crosshairUI.style.opacity = aiming ? '1' : '0';
+        updateAmmoUI();
+      }
     }
     window.addEventListener('keydown', (event) => setKey(event, true));
     window.addEventListener('keyup', (event) => setKey(event, false));
@@ -752,18 +846,16 @@
     const moveSpeed = 0.165;
 
     // --- CAMERA ---
-    const cameraDistance = 6;     // how far back the camera WANTS to sit
+    const cameraDistance = 6;
     const cameraHeight = 3.5;
-    const minCamDist = 1.8;       // closest it will ever pull in
-    const camClearance = 0.6;     // space to keep off the wall
-    let currentCamDist = cameraDistance; // the distance we're actually using now
+    const minCamDist = 1.8;
+    const camClearance = 0.6;
+    let currentCamDist = cameraDistance;
     camera.position.set(0, knight.position.y + cameraHeight, cameraDistance);
     camera.lookAt(0, 1.6, 0);
 
     // --- START ---
-    updateHearts();
-    updateKeysUI();
-    updateCoinsUI();
+    updateHearts(); updateKeysUI(); updateCoinsUI(); updateAmmoUI();
     loadRoom('start', 0, 0);
 
     // --- GAME LOOP ---
@@ -771,14 +863,52 @@
       requestAnimationFrame(animate);
 
       if (cooldownTimer > 0) cooldownTimer -= 1 / 60;
+      if (arrowCooldown > 0) arrowCooldown -= 1 / 60;
       if (transitionCooldown > 0) transitionCooldown -= 1 / 60;
-      if (messageTimer > 0) {
-        messageTimer -= 1 / 60;
-        if (messageTimer <= 0) messageUI.style.opacity = '0';
-      }
+      if (messageTimer > 0) { messageTimer -= 1 / 60; if (messageTimer <= 0) messageUI.style.opacity = '0'; }
+
       for (const it of items) {
         it.rotation.y += 0.05;
         it.position.y = it.userData.baseY + Math.sin(Date.now() * 0.004) * 0.12;
+      }
+      for (const pr of portals) pr.rotation.y += 0.03;
+
+      // --- arrows (player) ---
+      for (let i = arrows.length - 1; i >= 0; i--) {
+        const a = arrows[i];
+        a.position.x += a.userData.vx;
+        a.position.z += a.userData.vz;
+        a.userData.life--;
+        let gone = false;
+        if (isPositionBlocked(a.position.x, a.position.z, 0.1) || a.userData.life <= 0) gone = true;
+        if (!gone) {
+          for (let j = 0; j < enemies.length; j++) {
+            const e = enemies[j];
+            if (!e.userData.isAlive) continue;
+            if (a.position.distanceTo(e.position) < e.userData.radius + 0.3) {
+              damageEnemy(e, arrowDamage, a.position.x, a.position.z);
+              gone = true;
+              break;
+            }
+          }
+        }
+        if (gone) { scene.remove(a); arrows.splice(i, 1); }
+      }
+
+      // --- enemy shots ---
+      for (let i = enemyShots.length - 1; i >= 0; i--) {
+        const s = enemyShots[i];
+        s.position.x += s.userData.vx;
+        s.position.z += s.userData.vz;
+        s.userData.life--;
+        let gone = false;
+        if (isPositionBlocked(s.position.x, s.position.z, 0.1) || s.userData.life <= 0) gone = true;
+        const dxk = knight.position.x - s.position.x, dzk = knight.position.z - s.position.z;
+        if (!gone && Math.sqrt(dxk * dxk + dzk * dzk) < knightRadius + 0.3) {
+          takeDamage(1);
+          gone = true;
+        }
+        if (gone) { scene.remove(s); enemyShots.splice(i, 1); }
       }
 
       // --- enemies ---
@@ -786,17 +916,11 @@
         const enemy = enemies[i];
         if (enemy.userData.isDying) {
           enemy.userData.deathTimer += 1 / 60;
-          const progressVal = enemy.userData.deathTimer / 1.5;
-          if (progressVal >= 1) {
-            scene.remove(enemy);
-            enemy.userData.isDying = false;
-          } else {
-            const flatten = 1 - progressVal;
-            const spread = 1 + progressVal * 0.8;
-            const shrink = 1 - progressVal;
-            enemy.scale.y = flatten * 0.5;
-            enemy.scale.x = spread * shrink;
-            enemy.scale.z = spread * shrink;
+          const pv = enemy.userData.deathTimer / 1.5;
+          if (pv >= 1) { scene.remove(enemy); enemy.userData.isDying = false; }
+          else {
+            const flatten = 1 - pv, spread = 1 + pv * 0.8, shrink = 1 - pv;
+            enemy.scale.y = flatten * 0.5; enemy.scale.x = spread * shrink; enemy.scale.z = spread * shrink;
             enemy.position.y = enemy.userData.baseY * flatten;
           }
           continue;
@@ -804,20 +928,16 @@
         if (!enemy.userData.isAlive) continue;
         if (enemy.userData.hitFlashTimer > 0) {
           enemy.userData.hitFlashTimer -= 1 / 60;
-          if (enemy.userData.hitFlashTimer <= 0) {
-            enemy.material.color.setHex(enemy.userData.normalColor);
-          }
+          if (enemy.userData.hitFlashTimer <= 0) enemy.material.color.setHex(enemy.userData.normalColor);
         }
 
         if (enemy.userData.knockbackTimer > 0) {
           enemy.userData.knockbackTimer -= 1 / 60;
           const nx = enemy.position.x + enemy.userData.knockbackX;
           const nz = enemy.position.z + enemy.userData.knockbackZ;
-          if (!isPositionBlocked(nx, enemy.position.z, enemy.userData.radius) &&
-              !isOverPit(nx, enemy.position.z)) enemy.position.x = nx;
+          if (!isPositionBlocked(nx, enemy.position.z, enemy.userData.radius) && !isOverPit(nx, enemy.position.z)) enemy.position.x = nx;
           else enemy.userData.knockbackX = 0;
-          if (!isPositionBlocked(enemy.position.x, nz, enemy.userData.radius) &&
-              !isOverPit(enemy.position.x, nz)) enemy.position.z = nz;
+          if (!isPositionBlocked(enemy.position.x, nz, enemy.userData.radius) && !isOverPit(enemy.position.x, nz)) enemy.position.z = nz;
           else enemy.userData.knockbackZ = 0;
           enemy.userData.knockbackX *= 0.85;
           enemy.userData.knockbackZ *= 0.85;
@@ -825,23 +945,40 @@
           const dx = knight.position.x - enemy.position.x;
           const dz = knight.position.z - enemy.position.z;
           const dist = Math.sqrt(dx * dx + dz * dz);
-          if (dist > 0.5) {
-            const stepX = (dx / dist) * enemy.userData.speed;
-            const stepZ = (dz / dist) * enemy.userData.speed;
-            const r = enemy.userData.radius;
-            if (!isPositionBlocked(enemy.position.x + stepX, enemy.position.z, r) &&
-                !isOverPit(enemy.position.x + stepX, enemy.position.z)) {
-              enemy.position.x += stepX;
+
+          if (enemy.userData.ranged) {
+            // RANGED AI: hold a distance, bob, and shoot
+            const standoff = enemy.userData.standoff;
+            let moveDir = 0;
+            if (dist > standoff + 1) moveDir = 1;        // come closer
+            else if (dist < standoff - 1) moveDir = -1;  // back off
+            if (moveDir !== 0 && dist > 0.001) {
+              const sX = (dx / dist) * enemy.userData.speed * moveDir;
+              const sZ = (dz / dist) * enemy.userData.speed * moveDir;
+              const r = enemy.userData.radius;
+              if (!isPositionBlocked(enemy.position.x + sX, enemy.position.z, r) && !isOverPit(enemy.position.x + sX, enemy.position.z)) enemy.position.x += sX;
+              if (!isPositionBlocked(enemy.position.x, enemy.position.z + sZ, r) && !isOverPit(enemy.position.x, enemy.position.z + sZ)) enemy.position.z += sZ;
             }
-            if (!isPositionBlocked(enemy.position.x, enemy.position.z + stepZ, r) &&
-                !isOverPit(enemy.position.x, enemy.position.z + stepZ)) {
-              enemy.position.z += stepZ;
+            enemy.position.y = enemy.userData.baseY + Math.sin(Date.now() * 0.005) * 0.25; // hover bob
+            enemy.userData.shootTimer -= 1 / 60;
+            if (enemy.userData.shootTimer <= 0) {
+              spawnEnemyShot(enemy.position.x, enemy.position.y, enemy.position.z, knight.position.x, knight.position.z);
+              enemy.userData.shootTimer = 1.6 + Math.random() * 1.0;
+            }
+          } else {
+            // MELEE AI: chase
+            if (dist > 0.5) {
+              const stepX = (dx / dist) * enemy.userData.speed;
+              const stepZ = (dz / dist) * enemy.userData.speed;
+              const r = enemy.userData.radius;
+              if (!isPositionBlocked(enemy.position.x + stepX, enemy.position.z, r) && !isOverPit(enemy.position.x + stepX, enemy.position.z)) enemy.position.x += stepX;
+              if (!isPositionBlocked(enemy.position.x, enemy.position.z + stepZ, r) && !isOverPit(enemy.position.x, enemy.position.z + stepZ)) enemy.position.z += stepZ;
             }
           }
         }
 
-        const touchDist = knight.position.distanceTo(enemy.position);
-        if (touchDist < knightRadius + enemy.userData.radius) {
+        // contact damage (touching any enemy hurts)
+        if (knight.position.distanceTo(enemy.position) < knightRadius + enemy.userData.radius) {
           takeDamage(enemy.userData.damage);
         }
       }
@@ -849,28 +986,25 @@
       // --- KNIGHT STATE HANDLING ---
       if (knightState === 'falling') {
         fallTimer += 1 / 60;
-        const progressVal = fallTimer / fallDuration;
-        if (progressVal >= 1) {
-          respawnKnight();
-        } else {
-          knight.position.y = 0.8 - progressVal * 2.5;
-          knight.scale.set(1 - progressVal * 0.3, 1 - progressVal * 0.5, 1 - progressVal * 0.3);
-          knight.rotation.z = progressVal * 0.5;
+        const pv = fallTimer / fallDuration;
+        if (pv >= 1) respawnKnight();
+        else {
+          knight.position.y = 0.8 - pv * 2.5;
+          knight.scale.set(1 - pv * 0.3, 1 - pv * 0.5, 1 - pv * 0.3);
+          knight.rotation.z = pv * 0.5;
         }
       } else if (knightState === 'alive') {
 
         if (invincibleTimer > 0) {
           invincibleTimer -= 1 / 60;
           blinkTimer += 1 / 60;
-          if (blinkTimer > 0.1) {
-            knight.visible = !knight.visible;
-            blinkTimer = 0;
-          }
+          if (blinkTimer > 0.1) { knight.visible = !knight.visible; blinkTimer = 0; }
           if (invincibleTimer <= 0) knight.visible = true;
         }
 
-        // --- TANK CONTROLS ---
-        const turnSpeed = 0.05;
+        // --- TANK CONTROLS --- (slower while aiming, for precision)
+        const aimFactor = aiming ? 0.45 : 1;
+        const turnSpeed = 0.05 * aimFactor;
         if (keys.left) knight.rotation.y += turnSpeed;
         if (keys.right) knight.rotation.y -= turnSpeed;
 
@@ -885,17 +1019,15 @@
           moveX = forwardX * walkAmount;
           moveZ = forwardZ * walkAmount;
         }
-
-        const newX = knight.position.x + moveX * moveSpeed;
-        const newZ = knight.position.z + moveZ * moveSpeed;
+        const speed = moveSpeed * aimFactor;
+        const newX = knight.position.x + moveX * speed;
+        const newZ = knight.position.z + moveZ * speed;
         if (!isPositionBlocked(newX, knight.position.z, knightRadius)) knight.position.x = newX;
         if (!isPositionBlocked(knight.position.x, newZ, knightRadius)) knight.position.z = newZ;
 
-        if (isOverPit(knight.position.x, knight.position.z)) {
-          startFalling();
-        }
+        if (isOverPit(knight.position.x, knight.position.z)) startFalling();
 
-        // --- CONNECTORS: doors + stairs ---
+        // --- CONNECTORS: doors + stairs + portals ---
         if (transitionCooldown <= 0) {
           for (const door of doors) {
             if (knight.position.distanceTo(door.position) < 1.6) {
@@ -903,8 +1035,7 @@
                 showMessage('Locked! You need a key.', 1.0);
               } else {
                 if (door.userData.locked) {
-                  playerKeys -= 1;
-                  updateKeysUI();
+                  playerKeys -= 1; updateKeysUI();
                   progress.unlockedDoors.add(door.userData.id);
                   showMessage('Unlocked the door!', 1.2);
                 }
@@ -915,8 +1046,12 @@
           }
           for (const st of stairsList) {
             if (knight.position.distanceTo(st.position) < 2.0) {
-              loadRoom(st.userData.to, st.userData.arriveX, st.userData.arriveZ);
-              break;
+              loadRoom(st.userData.to, st.userData.arriveX, st.userData.arriveZ); break;
+            }
+          }
+          for (const pr of portals) {
+            if (knight.position.distanceTo(pr.position) < 1.8) {
+              loadRoom(pr.userData.to, pr.userData.arriveX, pr.userData.arriveZ); break;
             }
           }
         }
@@ -933,13 +1068,23 @@
               showMessage('Picked up a key! \uD83D\uDD11', 1.5);
             } else if (kind === 'coin') {
               playerCoins += 1; updateCoinsUI();
+            } else if (kind === 'arrow') {
+              playerArrows += 5; updateAmmoUI();
+              showMessage('+5 arrows \uD83C\uDFF9', 1.0);
             } else if (kind === 'heart') {
               if (knightHealth >= maxHearts) continue;
               knightHealth += 1; updateHearts();
               showMessage('+1 heart!', 1.0);
             } else if (kind === 'treasure') {
               if (item.userData.id) progress.tookTreasure.add(item.userData.id);
-              showMessage('\uD83C\uDFC6 You found the treasure! Dungeon cleared!', 4);
+              if (item.userData.final) {
+                dungeon1Clear = true;
+                showMessage('\uD83C\uDFC6 Dungeon 1 cleared! A glowing portal opened at the Entrance.', 4);
+              } else if (item.userData.final2) {
+                showMessage('\uD83C\uDFC6 Dungeon 2 cleared! You beat the Eye King!', 4);
+              } else {
+                showMessage('\uD83C\uDFC6 You found the treasure!', 3);
+              }
             }
             scene.remove(item);
             items.splice(i, 1);
@@ -956,13 +1101,19 @@
             const reward = chest.userData.reward;
             if (reward === 'coin') {
               playerCoins += 3; updateCoinsUI();
-              showMessage('Chest opened: +3 coins! \uD83E\uDE99', 1.6);
+              showMessage('Chest: +3 coins! \uD83E\uDE99', 1.6);
             } else if (reward === 'key') {
               playerKeys += 1; updateKeysUI();
-              showMessage('Chest opened: a key! \uD83D\uDD11', 1.6);
+              showMessage('Chest: a key! \uD83D\uDD11', 1.6);
             } else if (reward === 'heart') {
               if (knightHealth < maxHearts) { knightHealth += 1; updateHearts(); }
-              showMessage('Chest opened: +1 heart! \u2764\uFE0F', 1.6);
+              showMessage('Chest: +1 heart! \u2764\uFE0F', 1.6);
+            } else if (reward === 'arrows') {
+              playerArrows += 10; updateAmmoUI();
+              showMessage('Chest: +10 arrows! \uD83C\uDFF9', 1.6);
+            } else if (reward === 'bow') {
+              hasBow = true; playerArrows += 15; updateAmmoUI();
+              showMessage('\uD83C\uDFF9 BOW obtained!  / = shoot   . = aim-zoom', 4);
             }
           }
         }
@@ -971,10 +1122,7 @@
         if (isSwinging) {
           swingTimer += 1 / 60 / swingDuration;
           if (swingTimer >= 1) {
-            isSwinging = false;
-            swingTimer = 0;
-            cooldownTimer = swingCooldown;
-            sword.rotation.y = -0.3;
+            isSwinging = false; swingTimer = 0; cooldownTimer = swingCooldown; sword.rotation.y = -0.3;
           } else {
             sword.rotation.y = -1.5 + swingTimer * 3.0;
           }
@@ -982,32 +1130,13 @@
             for (let i = 0; i < enemies.length; i++) {
               const enemy = enemies[i];
               if (!enemy.userData.isAlive) continue;
-              const distance = knight.position.distanceTo(enemy.position);
-              if (distance < hitRange) {
-                enemy.userData.health -= swordDamage;
-                hasHitThisSwing = true;
-                enemy.userData.hitFlashTimer = 0.15;
-                enemy.material.color.setHex(0xffffff);
-                const kx = enemy.position.x - knight.position.x;
-                const kz = enemy.position.z - knight.position.z;
-                const kl = Math.sqrt(kx * kx + kz * kz);
-                enemy.userData.knockbackX = (kx / kl) * 0.3;
-                enemy.userData.knockbackZ = (kz / kl) * 0.3;
-                enemy.userData.knockbackTimer = 0.2;
-
-                if (enemy.userData.health <= 0) {
-                  enemy.userData.isAlive = false;
-                  enemy.userData.isDying = true;
-                  enemy.userData.deathTimer = 0;
-                  if (enemy.userData.isBoss) {
-                    progress.defeatedBosses.add(enemy.userData.id);
-                    createPickup('treasure', enemy.position.x, enemy.position.z);
-                    showMessage('The boss is defeated! It dropped the treasure!', 2.5);
-                  } else {
-                    const roll = Math.random();
-                    if (roll < 0.25)      createPickup('heart', enemy.position.x, enemy.position.z);
-                    else if (roll < 0.55) createPickup('coin',  enemy.position.x, enemy.position.z);
-                  }
+              if (knight.position.distanceTo(enemy.position) < hitRange) {
+                if (enemy.userData.meleeImmune) {
+                  if (messageTimer <= 0) showMessage('Your sword can\u2019t hurt it \u2014 use the bow!', 1.2);
+                  hasHitThisSwing = true; // swing wasted on the immune enemy
+                } else {
+                  damageEnemy(enemy, swordDamage, knight.position.x, knight.position.z);
+                  hasHitThisSwing = true;
                 }
                 break;
               }
@@ -1016,32 +1145,34 @@
         }
       }
 
-      // --- CAMERA --- (BOTW-style: zoom IN when a wall is behind the knight)
+      // --- CAMERA --- (spring arm + aim zoom)
+      const desiredDist = aiming ? 4.0 : cameraDistance;
       const knightAngle = knight.rotation.y;
-      const dirX = Math.sin(knightAngle); // points behind the knight, toward the camera
+      const dirX = Math.sin(knightAngle);
       const dirZ = Math.cos(knightAngle);
-
-      // March outward from the knight; stop just before the first wall we hit.
-      let allowedDist = cameraDistance;
-      for (let d = minCamDist; d <= cameraDistance; d += 0.25) {
-        if (isPositionBlocked(knight.position.x + dirX * d,
-                              knight.position.z + dirZ * d, camClearance)) {
-          allowedDist = d - 0.25; // back up to the last clear spot
-          break;
+      let allowedDist = desiredDist;
+      for (let d = minCamDist; d <= desiredDist; d += 0.25) {
+        if (isPositionBlocked(knight.position.x + dirX * d, knight.position.z + dirZ * d, camClearance)) {
+          allowedDist = d - 0.25; break;
         }
       }
       if (allowedDist < minCamDist) allowedDist = minCamDist;
-
-      // Snap IN fast (so it never clips), ease OUT slowly (so it feels smooth)
       const distSmooth = (allowedDist < currentCamDist) ? 0.5 : 0.08;
       currentCamDist += (allowedDist - currentCamDist) * distSmooth;
 
       const targetCameraX = knight.position.x + dirX * currentCamDist;
       const targetCameraZ = knight.position.z + dirZ * currentCamDist;
       camera.position.x += (targetCameraX - camera.position.x) * 0.18;
-      camera.position.y = knight.position.y + cameraHeight + 1.2;
+      camera.position.y = knight.position.y + cameraHeight + 1;
       camera.position.z += (targetCameraZ - camera.position.z) * 0.18;
       camera.lookAt(knight.position.x, 1.6, knight.position.z);
+
+      // zoom the lens when aiming (the "." target zoom)
+      const targetFov = aiming ? 34 : 60;
+      if (Math.abs(camera.fov - targetFov) > 0.05) {
+        camera.fov += (targetFov - camera.fov) * 0.25;
+        camera.updateProjectionMatrix();
+      }
 
       renderer.render(scene, camera);
     }
