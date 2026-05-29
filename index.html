@@ -158,6 +158,24 @@
       grassMesh.instanceMatrix.needsUpdate = true;
       scene.add(grassMesh);
     }
+
+    // A grass-LOOKING floor: it's drawn once as the ground, so this costs nothing extra.
+    let grassTexture = null;
+    function makeGrassTexture() {
+      const c = document.createElement('canvas');
+      c.width = 128; c.height = 128;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#4a8a3a'; ctx.fillRect(0, 0, 128, 128);     // base green
+      const greens = ['#3f9a3a','#5aa84a','#3a7d32','#6bbd55','#2f7d2a'];
+      for (let i = 0; i < 1600; i++) {                              // paint tiny blades
+        ctx.strokeStyle = greens[(Math.random()*greens.length)|0];
+        const x = Math.random()*128, y = Math.random()*128, len = 2 + Math.random()*4;
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + (Math.random()-0.5)*2, y - len); ctx.stroke();
+      }
+      const tex = new THREE.CanvasTexture(c);
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;                 // tile it across the ground
+      return tex;
+    }
     function createCactus(x, z) {
       const g = new THREE.Group();
       const mat = new THREE.MeshStandardMaterial({ color: 0x3a7d4a, roughness: 0.8 });
@@ -668,7 +686,16 @@
       ceiling.scale.set(S / roomSize, S / roomSize, 1);
       ceiling.visible = !room.outdoor;
 
-      floor.material.color.setHex(room.floorColor !== undefined ? room.floorColor : 0x666666);
+      if (room.grass) {
+        if (!grassTexture) grassTexture = makeGrassTexture();
+        floor.material.map = grassTexture;
+        grassTexture.repeat.set(S / 10, S / 10);   // one grass tile per ~10 units
+        floor.material.color.setHex(0xffffff);      // white = show the texture's real colors
+      } else {
+        floor.material.map = null;                  // dungeons/desert keep their flat color
+        floor.material.color.setHex(room.floorColor !== undefined ? room.floorColor : 0x666666);
+      }
+      floor.material.needsUpdate = true;
       wallMaterial.color.setHex(room.wallColor !== undefined ? room.wallColor : 0x554433);
       ceiling.material.color.setHex(room.ceilColor !== undefined ? room.ceilColor : 0x3a3a3a);
       scene.background.setHex(room.bg !== undefined ? room.bg : 0x111111);
