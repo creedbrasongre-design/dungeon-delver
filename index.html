@@ -606,14 +606,14 @@
       for (const p of room.pits) createPit(p[0], p[1], p[2]);
       for (const t of (room.trees||[])) createTree(t[0], t[1]);
 
-      room.enemies.forEach((e, idx) => {
+      (room.enemies || []).forEach((e, idx) => {
         const id = roomId + ':enemy:' + idx;
         const isBoss = e[3];
         if (isBoss && progress.defeatedBosses.has(id)) return;
         const enemy = createEnemy(e[0], e[1], e[2], isBoss);
         enemy.userData.id = id;
       });
-      room.doors.forEach((d, idx) => {
+      (room.doors || []).forEach((d, idx) => {
         const id = roomId + ':door:' + idx;
         const lockedNow = d.locked && !progress.unlockedDoors.has(id);
         const door = createDoor({ x:d.x, z:d.z, rot:d.rot, to:d.to, arriveX:d.arriveX, arriveZ:d.arriveZ, locked:lockedNow });
@@ -621,7 +621,7 @@
       });
       for (const s of (room.stairs||[])) createStairs(s);
       (room.portals||[]).forEach((p) => { if (p.requiresClear && !dungeon1Clear) return; createPortal(p); });
-      room.keys.forEach((k, idx) => {
+      (room.keys || []).forEach((k, idx) => {
         const id = roomId + ':key:' + idx;
         if (progress.takenKeys.has(id)) return;
         const item = createPickup('key', k[0], k[1]); item.userData.id = id;
