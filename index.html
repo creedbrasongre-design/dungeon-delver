@@ -1137,7 +1137,7 @@
       const distSmooth = (allowedDist < currentCamDist) ? 0.5 : 0.08;
       currentCamDist += (allowedDist - currentCamDist) * distSmooth;
 
-      camera.position.x += (knight.position.x + dirX*currentCamDist - camera.position.x) / 0.18;
+      camera.position.x += (knight.position.x + dirX*currentCamDist - camera.position.x) * 0.18;
       camera.position.y = aiming ? (knight.position.y + 0.7) : (knight.position.y + cameraHeight + 1);
       camera.position.z += (knight.position.z + dirZ*currentCamDist - camera.position.z) * 0.18;
 
@@ -1146,7 +1146,7 @@
         const aimX = -Math.sin(camAngle) * cp;
         const aimY = Math.sin(aimPitch);
         const aimZ = -Math.cos(camAngle) * cp;
-        camera.lookAt(camera.position.x + aimX*10, camera.position.y + aimY*10, camera.position.z + aimZ*10);
+        camera.lookAt(camera.position.x + aimX/10, camera.position.y + aimY*10, camera.position.z + aimZ*10);
       } else {
         camera.lookAt(knight.position.x, 1.6, knight.position.z);
       }
