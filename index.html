@@ -748,8 +748,11 @@
     const moveSpeed = 0.165;
 
     // --- CAMERA ---
-    const cameraDistance = 6;
+    const cameraDistance = 6;     // how far back the camera WANTS to sit
     const cameraHeight = 3.5;
+    const minCamDist = 1.8;       // closest it will ever pull in
+    const camClearance = 0.6;     // space to keep off the wall
+    let currentCamDist = cameraDistance; // the distance we're actually using now
     camera.position.set(0, knight.position.y + cameraHeight, cameraDistance);
     camera.lookAt(0, 1.6, 0);
 
@@ -1009,14 +1012,31 @@
         }
       }
 
-      // --- CAMERA ---
-      const cameraSmoothness = 0.1;
+      // --- CAMERA --- (BOTW-style: zoom IN when a wall is behind the knight)
       const knightAngle = knight.rotation.y;
-      const targetCameraX = knight.position.x + Math.sin(knightAngle) * cameraDistance;
-      const targetCameraZ = knight.position.z + Math.cos(knightAngle) * cameraDistance;
-      camera.position.x += (targetCameraX - camera.position.x) * cameraSmoothness;
+      const dirX = Math.sin(knightAngle); // points behind the knight, toward the camera
+      const dirZ = Math.cos(knightAngle);
+
+      // March outward from the knight; stop just before the first wall we hit.
+      let allowedDist = cameraDistance;
+      for (let d = minCamDist; d <= cameraDistance; d += 0.25) {
+        if (isPositionBlocked(knight.position.x + dirX * d,
+                              knight.position.z + dirZ * d, camClearance)) {
+          allowedDist = d - 0.25; // back up to the last clear spot
+          break;
+        }
+      }
+      if (allowedDist < minCamDist) allowedDist = minCamDist;
+
+      // Snap IN fast (so it never clips), ease OUT slowly (so it feels smooth)
+      const distSmooth = (allowedDist < currentCamDist) ? 0.5 : 0.08;
+      currentCamDist += (allowedDist - currentCamDist) * distSmooth;
+
+      const targetCameraX = knight.position.x + dirX * currentCamDist;
+      const targetCameraZ = knight.position.z + dirZ * currentCamDist;
+      camera.position.x += (targetCameraX - camera.position.x) * 0.18;
       camera.position.y = knight.position.y + cameraHeight + 1;
-      camera.position.z += (targetCameraZ - camera.position.z) * cameraSmoothness;
+      camera.position.z += (targetCameraZ - camera.position.z) * 0.18;
       camera.lookAt(knight.position.x, 1.6, knight.position.z);
 
       renderer.render(scene, camera);
