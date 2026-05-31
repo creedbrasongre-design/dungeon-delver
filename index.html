@@ -119,8 +119,9 @@
       return pit;
     }
 
-    // --- DECORATION PROPS (trees / grass / cacti) ---
+    // --- DECORATION PROPS (trees / grass / cacti / paths) ---
     const props = [];
+    const flickerLights = [];   // torch lights we wobble each frame
     function createTree(x, z) {
       const g = new THREE.Group();
       const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.45, 2, 8),
@@ -131,6 +132,71 @@
       leaves.position.y = 3.4; g.add(leaves);
       g.position.set(x, 0, z);
       scene.add(g); props.push(g); return g;
+    }
+    // a winding path: lay flat tiles between waypoints, with a disc at each joint to round corners
+    function createPath(points, color, width) {
+      width = width || 3;
+      const mat = new THREE.MeshStandardMaterial({ color: color || 0x6b5535, roughness: 1 });
+      for (let i = 0; i < points.length; i++) {
+        // rounded joint at each waypoint
+        const disc = new THREE.Mesh(new THREE.CylinderGeometry(width/2, width/2, 0.08, 16), mat);
+        disc.position.set(points[i][0], 0.05, points[i][1]);
+        scene.add(disc); props.push(disc);
+        // segment connecting this point to the next
+        if (i < points.length - 1) {
+          const ax = points[i][0], az = points[i][1], bx = points[i+1][0], bz = points[i+1][1];
+          const dx = bx - ax, dz = bz - az;
+          const len = Math.sqrt(dx*dx + dz*dz);
+          const seg = new THREE.Mesh(new THREE.BoxGeometry(width, 0.08, len), mat);
+          seg.position.set((ax+bx)/2, 0.05, (az+bz)/2);
+          seg.rotation.y = Math.atan2(dx, dz);   // face along the segment
+          scene.add(seg); props.push(seg);
+        }
+      }
+    }
+    // a flat ground patch (used to blend one biome's color into another at borders)
+    function createPatch(x, z, r, color) {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.06, 14),
+        new THREE.MeshStandardMaterial({ color: color, roughness: 1 }));
+      m.position.set(x, 0.04, z);
+      scene.add(m); props.push(m); return m;
+    }
+    // a pile of stacked faceted boulders, each with a black toon outline
+    function createRock(x, z, s, color) {
+      const g = new THREE.Group();
+      const mat = new THREE.MeshStandardMaterial({ color: color || 0x8a7d66, roughness: 1, flatShading: true });
+      let y = 0;
+      const layers = 3 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < layers; i++) {
+        const r = (1.7 - i*0.16) * s * (0.8 + Math.random()*0.4);
+        const geo = new THREE.IcosahedronGeometry(r, 0);   // low-poly faceted boulder
+        const rock = new THREE.Mesh(geo, mat);
+        rock.position.set((Math.random()-0.5)*1.3*s, y + r*0.6, (Math.random()-0.5)*1.3*s);
+        rock.rotation.set(Math.random(), Math.random(), Math.random());
+        rock.scale.y = 0.8 + Math.random()*0.45;
+        // black outline = a slightly bigger inside-out shell behind the rock
+        const outline = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x141414, side: THREE.BackSide }));
+        outline.scale.multiplyScalar(1.08);
+        rock.add(outline);
+        g.add(rock);
+        y += r * (0.85 + Math.random()*0.3);
+      }
+      g.position.set(x, 0, z);
+      scene.add(g); props.push(g); return g;
+    }
+    // a rocky canyon corridor leading to the world border (walls flank the path). alongX = corridor runs along x.
+    function createRockyGate(x, z, alongX, color, length) {
+      length = length || 26;
+      const sideOff = 5, half = length / 2;
+      for (const sign of [1, -1]) {
+        if (alongX) {
+          for (let t = 0; t <= length; t += 2.4) createRock(x - t, z + sign*sideOff, 1.4 + Math.random()*0.6, color);
+          createWall(x - half, z + sign*sideOff, length + 3, 4);   // solid wall along this side
+        } else {
+          for (let t = 0; t <= length; t += 2.4) createRock(x + sign*sideOff, z - t, 1.4 + Math.random()*0.6, color);
+          createWall(x + sign*sideOff, z - half, 4, length + 3);
+        }
+      }
     }
     function createGrass(x, z) {
       const g = new THREE.Group();
@@ -303,6 +369,14 @@
     // --- PORTALS + GATEWAYS ---
     const portals = [];
     function createPortal(p) {
+      if (p.zone) {
+        // an INVISIBLE loading zone: no mesh, just a trigger point with a travel direction
+        const z = new THREE.Object3D();
+        z.position.set(p.x, 0, p.z);
+        z.userData = { to: p.to, arriveX: p.arriveX, arriveZ: p.arriveZ, comingSoon: false,
+                       zone: true, dir: p.dir || 0, faceYaw: (p.faceYaw !== undefined ? p.faceYaw : 0) };
+        scene.add(z); portals.push(z); return z;
+      }
       if (p.comingSoon) {
         const g = new THREE.Group();
         const mat = new THREE.MeshStandardMaterial({ color: 0x8a8a96, roughness: 0.9 });
@@ -312,6 +386,78 @@
         g.position.set(p.x, 0, p.z);
         g.userData = { comingSoon: true, name: p.name || 'Side' };
         scene.add(g); portals.push(g); return g;
+      }
+      if (p.entrance) {
+        // a real temple building: stone body (cella), pyramid roof, front columns, steps, recessed door
+        const g = new THREE.Group();
+        const stone = new THREE.MeshStandardMaterial({ color: p.stone || 0x6b6b73, roughness: 1 });
+        const roofMat = new THREE.MeshStandardMaterial({ color: p.roof || 0x5a7a6a, roughness: 0.9 });
+        const dark  = new THREE.MeshStandardMaterial({ color: 0x05050a, roughness: 1 });
+        const glowMat = new THREE.MeshStandardMaterial({ color: p.color || 0x66ddff, emissive: p.emissive || 0x2299cc, emissiveIntensity: 1.0 });
+
+        // thin plinth the temple sits on
+        const plinth = new THREE.Mesh(new THREE.BoxGeometry(18, 0.5, 15), stone); plinth.position.set(0, 0.25, -4); g.add(plinth);
+        // main body (the cella) - a big solid block; front face at z = 0
+        const body = new THREE.Mesh(new THREE.BoxGeometry(14, 8, 10), stone); body.position.set(0, 4.25, -5); g.add(body);
+        // pyramid roof (4-sided cone) sitting on top
+        const roof = new THREE.Mesh(new THREE.ConeGeometry(11, 5, 4), roofMat);
+        roof.rotation.y = Math.PI / 4; roof.position.set(0, 10.7, -5); g.add(roof);
+        // front columns (portico)
+        const colXs = [-5.4, -2.8, 2.8, 5.4];
+        for (const cx of colXs) {
+          const col = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.6, 7, 12), stone);
+          col.position.set(cx, 3.75, 1.4); g.add(col);
+        }
+        // entablature beam across the column tops
+        const beam = new THREE.Mesh(new THREE.BoxGeometry(13, 1.2, 1.6), stone); beam.position.set(0, 7.6, 1.4); g.add(beam);
+        // front steps (decoration, walk-on)
+        for (let i = 0; i < 3; i++) {
+          const step = new THREE.Mesh(new THREE.BoxGeometry(10 - i*1.5, 0.35, 1.2), stone);
+          step.position.set(0, 0.18 + i*0.0, 3.4 - i*1.0); g.add(step);
+        }
+        // dark recessed doorway in the front face
+        const opening = new THREE.Mesh(new THREE.BoxGeometry(4, 6, 0.8), dark); opening.position.set(0, 3.2, 0.45); g.add(opening);
+        // glowing medallion above the door
+        const medallion = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.0, 0.3, 18), glowMat);
+        medallion.rotation.x = Math.PI / 2; medallion.position.set(0, 7.6, 2.3); g.add(medallion);
+        // glowing threshold on the ground
+        const glow = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.7, 0.2, 24), glowMat);
+        glow.position.set(0, 0.16, 2.6); g.add(glow);
+
+        // torches flanking the doorway (post + flame + flickering light)
+        const woodMat = new THREE.MeshStandardMaterial({ color: 0x4a3320, roughness: 1 });
+        const flameMat = new THREE.MeshStandardMaterial({ color: 0xffaa33, emissive: 0xff7711, emissiveIntensity: 1.2 });
+        for (const tx of [-3.2, 3.2]) {
+          const post = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 3, 8), woodMat);
+          post.position.set(tx, 1.5, 1.6); g.add(post);
+          const flame = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.9, 8), flameMat);
+          flame.position.set(tx, 3.4, 1.6); g.add(flame);
+          const light = new THREE.PointLight(0xff8833, 2.2, 14);
+          light.position.set(tx, 3.6, 1.6); g.add(light);
+          light.userData = { base: 2.2, phase: Math.random() * 6.28 };
+          flickerLights.push(light);
+        }
+
+        g.position.set(p.x, 0, p.z);
+        g.rotation.y = p.rot || 0;
+        g.userData = { to: p.to, arriveX: p.arriveX, arriveZ: p.arriveZ, comingSoon: false, entrance: true };
+        scene.add(g); portals.push(g);
+
+        // SOLID building walls with a GAP at the door (rotated to match). Door gap = x[-2,2] at the front.
+        const cos = Math.cos(p.rot || 0), sin = Math.sin(p.rot || 0);
+        const solids = [
+          [-4.5, 0,  5, 1.2],   // front-left facade
+          [ 4.5, 0,  5, 1.2],   // front-right facade
+          [-7, -5, 1.2, 10],    // left wall
+          [ 7, -5, 1.2, 10],    // right wall
+          [ 0, -10, 14, 1.2]    // back wall
+        ];
+        for (const s of solids) {
+          const wx = p.x + s[0]*cos + s[1]*sin;
+          const wz = p.z - s[0]*sin + s[1]*cos;
+          createWall(wx, wz, s[2], s[3]);
+        }
+        return g;
       }
       const pad = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.3, 0.25, 24),
         new THREE.MeshStandardMaterial({ color: p.color || 0x66ddff, emissive: p.emissive || 0x2299cc, emissiveIntensity: 0.8 }));
@@ -427,17 +573,25 @@
           [10,75],[-15,80],[90,40],[-90,30],[35,-80],[-40,-85]
         ],
         portals: [
-          { x:0, z:-25, to:'start', arriveX:0, arriveZ:0, color:0x66ff99, emissive:0x229955 }, // cave -> Dungeon 1
-          { x:75, z:0, to:'desert_field', arriveX:0, arriveZ:15, color:0xe0c060, emissive:0x886622 }, // -> Desert
+          { x:0, z:-25, to:'start', arriveX:0, arriveZ:0, entrance:true, stone:0x6b6b73, color:0x66ff99, emissive:0x229955 }, // cave -> Dungeon 1
+          { x:96, z:0, zone:true, to:'desert_field', arriveX:0, arriveZ:50, dir:-Math.PI/2, faceYaw:0 }, // loading zone near EAST border -> Desert
           { x:-75, z:0,   comingSoon:true, name:'Forest' },
           { x:0,   z:75,  comingSoon:true, name:'Snowpeak' },
           { x:-55, z:-60, comingSoon:true, name:'Volcano' },
           { x:55,  z:60,  comingSoon:true, name:'Swamp' }
         ],
+        paths: [
+          { pts: [[2,30],[6,18],[-4,8],[5,-4],[-3,-14],[0,-22]], color:0x6b5535, width:3.5 },          // spawn -> Dungeon 1 temple
+          { pts: [[4,4],[24,8],[46,-3],[64,0],[100,0]], color:0x6b5535, width:4 }                       // spawn -> straight down the canyon to the border
+        ],
+        patches: [
+          [50,5,4,0xcdbb82],[60,-5,5,0xd4c089],[68,4,4,0xcdbb82],[76,-3,5,0xd8c890],
+          [84,3,4,0xd8c890],[92,-2,3.5,0xd8c890],[56,-12,3,0xcdbb82],[72,12,3,0xcdbb82]
+        ],
+        rockyGates: [ [100,0,true,0x8a7d66,30] ],
+        borderGaps: [ { side:'east', at:0, width:8 } ],
         keys:[], chests:[], treasures:[]
       },
-
-      // ============ OVERWORLD: DESERT REGION ============
       desert_field: {
         label: 'Gerudo Sands - Desert Region',
         outdoor: true, size: 120,
@@ -445,10 +599,19 @@
         walls: [], pits: [],
         enemies: [ ['redSlime',12,-10], ['redSlime',-15,8], ['ogre',22,18], ['redSlime',-25,-20] ],
         cacti: [ [10,-5],[-12,6],[25,5],[-25,-5],[18,-22],[-20,-18],[32,-12],[-32,12],[42,8],[-42,-8],[15,30],[-18,28] ],
-        portals: [
-          { x:0, z:25, to:'mainland', arriveX:75, arriveZ:10, color:0xe0c060, emissive:0x886622 }, // back to fields
-          { x:0, z:-25, to:'des_entry', arriveX:0, arriveZ:0, color:0xffcc66, emissive:0x885500 }  // -> Desert Dungeon
+        paths: [
+          { pts: [[0,20],[7,8],[-6,-4],[6,-14],[0,-22]], color:0xcbb072, width:3.5 },   // interior -> Desert Dungeon
+          { pts: [[0,28],[4,40],[0,48],[0,60]], color:0xcbb072, width:4 }                // interior -> straight up the canyon to the border
         ],
+        portals: [
+          { x:0, z:56, zone:true, to:'mainland', arriveX:80, arriveZ:0, dir:Math.PI, faceYaw:Math.PI/2 }, // loading zone near NORTH border -> fields
+          { x:0, z:-25, to:'des_entry', arriveX:0, arriveZ:0, entrance:true, stone:0xb89a5a, roof:0x9c7a3a, color:0xffcc66, emissive:0x885500 }  // -> Desert Dungeon
+        ],
+        patches: [
+          [0,40,5,0x6fa84a],[8,46,4,0x5f9a3f],[-8,44,4,0x6fa84a],[4,52,3,0x5f9a3f],[-6,52,3,0x6fa84a],[10,36,3,0x6fa84a],[-11,38,3.5,0x5f9a3f]
+        ],
+        rockyGates: [ [0,60,false,0xb0a07a,30] ],
+        borderGaps: [ { side:'north', at:0, width:8 } ],
         keys:[], chests:[], treasures:[]
       },
 
@@ -639,7 +802,7 @@
       for (const cl of clouds) scene.remove(cl);
       walls.length=0; pits.length=0; enemies.length=0; doors.length=0;
       stairsList.length=0; portals.length=0; items.length=0; chests.length=0;
-      arrows.length=0; enemyShots.length=0; props.length=0; clouds.length=0;
+      arrows.length=0; enemyShots.length=0; props.length=0; clouds.length=0; flickerLights.length=0;
     }
 
     function loadRoom(roomId, arriveX, arriveZ) {
@@ -660,13 +823,32 @@
       roomLabelUI.textContent = room.label || '';
 
       const bh = room.outdoor ? 2.5 : wallHeight;
-      createWall(0, -S/2, S, 0.5, bh);
-      createWall(0,  S/2, S, 0.5, bh);
-      createWall(-S/2, 0, 0.5, S, bh);
-      createWall( S/2, 0, 0.5, S, bh);
+      const gaps = room.borderGaps || [];
+      const gapFor = (side) => gaps.find(g => g.side === side);
+      // north (+z) / south (-z): walls run along x
+      [['south', -S/2], ['north', S/2]].forEach(function (e) {
+        const side = e[0], wz = e[1], g = gapFor(side);
+        if (g) {
+          const gh = g.width/2;
+          const aLen = (g.at - gh) - (-S/2); if (aLen > 0.5) createWall((-S/2 + (g.at - gh))/2, wz, aLen, 0.5, bh);
+          const bLen = (S/2) - (g.at + gh);  if (bLen > 0.5) createWall(((g.at + gh) + S/2)/2, wz, bLen, 0.5, bh);
+        } else createWall(0, wz, S, 0.5, bh);
+      });
+      // west (-x) / east (+x): walls run along z
+      [['west', -S/2], ['east', S/2]].forEach(function (e) {
+        const side = e[0], wx = e[1], g = gapFor(side);
+        if (g) {
+          const gh = g.width/2;
+          const aLen = (g.at - gh) - (-S/2); if (aLen > 0.5) createWall(wx, (-S/2 + (g.at - gh))/2, 0.5, aLen, bh);
+          const bLen = (S/2) - (g.at + gh);  if (bLen > 0.5) createWall(wx, ((g.at + gh) + S/2)/2, 0.5, bLen, bh);
+        } else createWall(wx, 0, 0.5, S, bh);
+      });
 
       for (const w of room.walls) createWall(w[0], w[1], w[2], w[3]);
       for (const p of room.pits) createPit(p[0], p[1], p[2]);
+      for (const pa of (room.paths||[])) createPath(pa.pts, pa.color, pa.width);
+      for (const pa of (room.patches||[])) createPatch(pa[0], pa[1], pa[2], pa[3]);
+      for (const rg of (room.rockyGates||[])) createRockyGate(rg[0], rg[1], rg[2], rg[3], rg[4]);
       for (const t of (room.trees||[])) createTree(t[0], t[1]);
       for (const c of (room.cacti||[])) createCactus(c[0], c[1]);
 
@@ -717,6 +899,55 @@
       if (roomId === 'des_entry' && !hasBow) showMessage('Open the chest to claim the BOW!', 2.5);
       if (roomId === 'mainland') showMessage('Main Region. Green cave (north) = Dungeon 1. East gate = the Desert.', 3.5);
       if (roomId === 'desert_field') showMessage('Gerudo Sands. A dungeon lies to the south.', 3);
+    }
+
+    // travel to a new area with a quick fade (OoT/TP-style loading-zone feel)
+    let traveling = false;
+    function travelTo(to, ax, az) {
+      if (traveling) return;
+      traveling = true;
+      fadeOverlay.style.opacity = '1';
+      setTimeout(() => {
+        loadRoom(to, ax, az);
+        fadeOverlay.style.opacity = '0';
+        traveling = false;
+      }, 320);
+    }
+
+    // CINEMATIC loading zone: camera freezes facing the gate, hero auto-walks through, fade, arrive
+    let transition = null;
+    function startTransition(u, portalPos) {
+      if (transition || traveling) return;
+      const dir = u.dir || 0;
+      const fX = -Math.sin(dir), fZ = -Math.cos(dir);
+      transition = {
+        phase: 'walk', t: 0, fwdX: fX, fwdZ: fZ,
+        to: u.to, ax: u.arriveX, az: u.arriveZ, faceYaw: u.faceYaw || 0,
+        // freeze the camera where it is, looking along the gate direction
+        freezeX: camera.position.x, freezeY: camera.position.y, freezeZ: camera.position.z,
+        lookX: portalPos.x + fX*6, lookY: 1.4, lookZ: portalPos.z + fZ*6
+      };
+    }
+    function updateTransition() {
+      const tr = transition;
+      tr.t += 1/60;
+      if (tr.phase === 'walk') {
+        knight.rotation.y = Math.atan2(-tr.fwdX, -tr.fwdZ); // face travel direction
+        const sp = moveSpeed * 0.8;
+        knight.position.x += tr.fwdX * sp;
+        knight.position.z += tr.fwdZ * sp;
+        if (tr.t > 0.7) { tr.phase = 'fadeout'; tr.t = 0; fadeOverlay.style.opacity = '1'; }
+      } else if (tr.phase === 'fadeout') {
+        if (tr.t > 0.4) {                       // screen is fully black -> swap areas
+          loadRoom(tr.to, tr.ax, tr.az);
+          knight.rotation.y = tr.faceYaw;
+          // snap camera behind the hero in the new area so it doesn't fly across
+          const bx = Math.sin(tr.faceYaw), bz = Math.cos(tr.faceYaw);
+          camera.position.set(knight.position.x + bx*cameraDistance, knight.position.y + cameraHeight + 1, knight.position.z + bz*cameraDistance);
+          fadeOverlay.style.opacity = '0';      // CSS fades back in
+          transition = null;                    // control returns
+        }
+      }
     }
 
     // --- KNIGHT STATE ---
@@ -849,7 +1080,8 @@
       if (messageTimer > 0) { messageTimer -= 1/60; if (messageTimer <= 0) messageUI.style.opacity = '0'; }
 
       for (const it of items) { it.rotation.y += 0.05; it.position.y = it.userData.baseY + Math.sin(Date.now()*0.004)*0.12; }
-      for (const pr of portals) { if (!pr.userData.comingSoon) pr.rotation.y += 0.03; }
+      for (const pr of portals) { if (!pr.userData.comingSoon && !pr.userData.entrance && !pr.userData.zone) pr.rotation.y += 0.03; }
+      for (const L of flickerLights) L.intensity = L.userData.base + Math.sin(Date.now()*0.012 + L.userData.phase)*0.6 + Math.random()*0.3;
 
       for (const c of clouds) {
         c.position.x += c.userData.driftSpeed;
@@ -963,6 +1195,8 @@
         const pv = fallTimer / fallDuration;
         if (pv >= 1) respawnKnight();
         else { knight.position.y = 0.8 - pv*2.5; knight.scale.set(1-pv*0.3, 1-pv*0.5, 1-pv*0.3); knight.rotation.z = pv*0.5; }
+      } else if (transition) {
+        updateTransition();
       } else if (knightState === 'alive') {
 
         if (invincibleTimer > 0) {
@@ -1015,11 +1249,14 @@
             if (knight.position.distanceTo(st.position) < 2.0) { loadRoom(st.userData.to, st.userData.arriveX, st.userData.arriveZ); break; }
           }
           for (const pr of portals) {
-            if (knight.position.distanceTo(pr.position) < 2.0) {
+            const reach = pr.userData.entrance ? 2.8 : (pr.userData.zone ? 1.8 : 2.0);
+            if (knight.position.distanceTo(pr.position) < reach) {
               if (pr.userData.comingSoon) {
                 if (messageTimer <= 0) showMessage(pr.userData.name + ' region \u2014 coming soon!', 1.5);
+              } else if (pr.userData.zone) {
+                startTransition(pr.userData, pr.position);
               } else {
-                loadRoom(pr.userData.to, pr.userData.arriveX, pr.userData.arriveZ);
+                travelTo(pr.userData.to, pr.userData.arriveX, pr.userData.arriveZ);
               }
               break;
             }
@@ -1088,6 +1325,13 @@
       }
 
       // --- CAMERA ---
+      if (transition) {
+        // frozen cinematic camera looking along the gateway while the hero walks through
+        camera.position.set(transition.freezeX, transition.freezeY, transition.freezeZ);
+        camera.lookAt(transition.lookX, transition.lookY, transition.lookZ);
+        renderer.render(scene, camera);
+        return;
+      }
       const camAngle = knight.rotation.y + (aiming ? aimYaw : 0);
       const dirX = Math.sin(camAngle), dirZ = Math.cos(camAngle);
       const desiredDist = aiming ? 4.0 : cameraDistance;
@@ -1101,13 +1345,13 @@
 
       camera.position.x += (knight.position.x + dirX*currentCamDist - camera.position.x) * 0.18;
       // sit a bit above while aiming so the player drops below the crosshair (clear view ahead)
-      camera.position.y = aiming ? (knight.position.y + 2.0) : (knight.position.y + cameraHeight + 1);
+      camera.position.y = aiming ? (knight.position.y + 1.8) : (knight.position.y + cameraHeight + 1);
       camera.position.z += (knight.position.z + dirZ*currentCamDist - camera.position.z) * 0.18;
 
       if (aiming) {
-        // look at a spot out in FRONT of the player; I/K tilt it up/down, J/L sweep it
+        // look LEVEL out in front (crosshair centered); I/K tilt up/down from there, J/L sweep
         const fX = -Math.sin(camAngle), fZ = -Math.cos(camAngle);
-        camera.lookAt(knight.position.x + fX*5, 1.2 + aimPitch*5, knight.position.z + fZ*5);
+        camera.lookAt(knight.position.x + fX*6, camera.position.y + aimPitch*6, knight.position.z + fZ*6);
       } else {
         camera.lookAt(knight.position.x, 1.6, knight.position.z);
       }
